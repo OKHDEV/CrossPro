@@ -1,0 +1,17 @@
+# Build & Executables
+build/
+dist/
+__pycache__/
+*.spec
+*.log
+*.pyc
+CrossPro.exe
+CrossPro_update.exe
+_apply_update.bat
+
+# User local configs
+crosspro_profiles.json
+custom_pixel_reticle.png
+
+# Scratch test files
+scratch/

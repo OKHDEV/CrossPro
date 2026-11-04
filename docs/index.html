@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CrossPro - Ultimate FPS Crosshair System</title>
+  <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/OKHDEV/CrossPro/main/icon.ico">
+  <meta name="description" content="100% 칼사각 & 완전 대칭 조준선부터 픽셀 브러시 스튜디오, 자동 업데이트까지 탑재한 최강의 FPS 게이밍 크로스헤어 시스템">
+  <style>
+    :root {
+      --bg-main: #0B0C0E;
+      --bg-card: #131418;
+      --bg-card-hover: #191B22;
+      --border-color: #23252E;
+      --accent-orange: #FF6B00;
+      --accent-hover: #FF8533;
+      --accent-glow: rgba(255, 107, 0, 0.35);
+      --text-main: #FFFFFF;
+      --text-muted: #8E93A0;
+      --text-dim: #545763;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Glow background accents */
+    .glow-top {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 400px;
+      background: radial-gradient(ellipse at center, rgba(255, 107, 0, 0.15) 0%, rgba(11, 12, 14, 0) 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(12px);
+      background: rgba(11, 12, 14, 0.85);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 100;
+      padding: 16px 24px;
+    }
+
+    .nav-container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text-main);
+    }
+
+    .brand span {
+      color: var(--accent-orange);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-main);
+    }
+
+    .btn-nav-download {
+      background: var(--accent-orange);
+      color: #fff !important;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 700 !important;
+      transition: all 0.2s !important;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .btn-nav-download:hover {
+      background: var(--accent-hover);
+      box-shadow: 0 0 22px rgba(255, 107, 0, 0.6);
+      transform: translateY(-1px);
+    }
+
+    /* Hero Section */
+    .hero {
+      position: relative;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 90px 20px 60px;
+      text-align: center;
+      z-index: 1;
+    }
+
+    .badge-release {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 107, 0, 0.12);
+      border: 1px solid rgba(255, 107, 0, 0.35);
+      color: var(--accent-orange);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 52px;
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      line-height: 1.18;
+      margin-bottom: 20px;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, #FF8533 0%, #FF6B00 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 680px;
+      margin: 0 auto 36px;
+      line-height: 1.6;
+    }
+
+    .cta-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, #FF7B1A 0%, #FF6B00 100%);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 800;
+      padding: 16px 36px;
+      border-radius: 10px;
+      text-decoration: none;
+      box-shadow: 0 10px 30px var(--accent-glow);
+      transition: all 0.25s ease;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #FF8D38 0%, #FF7814 100%);
+      box-shadow: 0 14px 40px rgba(255, 107, 0, 0.55);
+      transform: translateY(-2px);
+    }
+
+    .meta-note {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    /* Features Grid */
+    .features {
+      max-width: 1100px;
+      margin: 60px auto;
+      padding: 0 20px;
+    }
+
+    .section-title {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .section-title h2 {
+      font-size: 32px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .section-title p {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 28px;
+      transition: all 0.25s;
+    }
+
+    .card:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 107, 0, 0.4);
+      transform: translateY(-3px);
+    }
+
+    .card-icon {
+      font-size: 30px;
+      margin-bottom: 16px;
+    }
+
+    .card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    .card p {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Keybinds Table */
+    .keybinds {
+      max-width: 800px;
+      margin: 80px auto;
+      padding: 0 20px;
+    }
+
+    .key-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .key-table th, .key-table td {
+      padding: 14px 20px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .key-table th {
+      background: #101115;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .key-badge {
+      display: inline-block;
+      background: #252833;
+      color: var(--accent-orange);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 5px;
+      border: 1px solid #363A48;
+    }
+
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 36px 20px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 13px;
+      margin-top: 80px;
+    }
+
+    footer a {
+      color: var(--accent-orange);
+      text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 36px; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-top"></div>
+
+  <header>
+    <div class="nav-container">
+      <a href="#" class="brand">
+        🎯 Cross<span>Pro</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">주요 기능</a>
+        <a href="#keybinds">단축키</a>
+        <a href="https://github.com/OKHDEV/CrossPro" target="_blank">GitHub</a>
+        <a href="https://github.com/OKHDEV/CrossPro/releases/latest/download/CrossPro.exe" class="btn-nav-download">다운로드</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="badge-release">
+        ⚡ v1.0.0 공식 릴리즈 • 자동 업데이트 지원
+      </div>
+      <h1>프로게이머 수준의 궁극의 조준선<br><span>CrossPro</span></h1>
+      <p>
+        100% 칼사각 & 완전 대칭 조준선부터, 그림판급 수제 픽셀 브러시 스튜디오까지.<br>
+        실시간 모니터 1:1 라이브 프리뷰와 발사 반동 애니메이션을 탑재한 최강의 FPS 오버레이.
+      </p>
+
+      <div class="cta-group">
+        <a href="https://github.com/OKHDEV/CrossPro/releases/latest/download/CrossPro.exe" class="btn-primary">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          CrossPro 최신 버전 다운로드 (.exe)
+        </a>
+        <span class="meta-note">무설치 단독 실행 파일 (Windows 10/11 64-bit 지원)</span>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <div class="section-title">
+        <h2>차원이 다른 프리미엄 기능</h2>
+        <p>프로 FPS 선수들의 요구사항을 100% 반영한 압도적 성능</p>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">🎯</div>
+          <h3>100% 칼사각 & 수학적 완전 대칭</h3>
+          <p>흐려짐이나 반투명 0%. 0.1단위 미세 조절에도 상하좌우 간격이 1픽셀도 어긋나지 않고 정중앙에 완전 고정됩니다.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🎨</div>
+          <h3>픽셀 브러시 스튜디오</h3>
+          <p>1px 초미세 연필부터 512×512 사진급 해상도까지! 내가 직접 마우스로 픽셀을 찍어서 나만의 수제 크로스헤어를 만듭니다.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🌊</div>
+          <h3>스무스 사진 모드 & 칼사각 모드</h3>
+          <p>가장자리가 부드러운 안티앨리어싱 스무스 펜 모드와 선명한 칼사각 도트 펜 모드를 자유자재로 선택할 수 있습니다.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">👁️</div>
+          <h3>모니터 1:1 실물 라이브 프리뷰</h3>
+          <p>확대 작업창 바로 옆에 모니터 화면에 실제로 찍히는 100% 실물 크기 창을 제공하여 실시간으로 확인하며 그릴 수 있습니다.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3>로고 스플래시 & 자동 업데이트</h3>
+          <p>프로그램 실행 시 세련된 로고와 함께 GitHub 최신 버전을 자동으로 감지하여 원클릭으로 최신 상태를 유지합니다.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">🛡️</div>
+          <h3>안티치트 100% 안전 & 트레이 제어</h3>
+          <p>게임 메모리를 변조하지 않는 투명 윈도우 오버레이 방식이며, 숨겨진 아이콘(트레이)에서 우클릭으로 언제든 안전 종료가 가능합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="keybinds" class="keybinds">
+      <div class="section-title">
+        <h2>전역 단축키 (Global Keybinds)</h2>
+        <p>게임 플레이 중 언제든 손쉽게 조작할 수 있습니다.</p>
+      </div>
+
+      <table class="key-table">
+        <thead>
+          <tr>
+            <th>단축키</th>
+            <th>동작 설명</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="key-badge">F8</span></td>
+            <td>화면 크로스헤어 표시 / 숨기기 토글</td>
+          </tr>
+          <tr>
+            <td><span class="key-badge">F9</span></td>
+            <td>CrossPro 설정창 열기 / 닫기 (트레이 최소화)</td>
+          </tr>
+          <tr>
+            <td><span class="key-badge">F10</span></td>
+            <td>다음 프로필로 즉시 전환 (TenZ, Yay, Demon1 등)</td>
+          </tr>
+          <tr>
+            <td><span class="key-badge">Ctrl + F12</span></td>
+            <td>프로그램 완전 종료</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2026 <a href="https://github.com/OKHDEV" target="_blank">OKHDEV</a> • CrossPro - Ultimate Crosshair Pro</p>
+    <p style="margin-top: 6px; font-size: 11px;">오픈소스 프로젝트로 누구나 자유롭게 다운로드하여 사용할 수 있습니다.</p>
+  </footer>
+</body>
+</html>
