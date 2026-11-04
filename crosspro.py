@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.1"
+CURRENT_VERSION = "v1.0.2"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -1111,7 +1111,7 @@ class App:
         body.pack(fill="both", expand=True)
 
         # 좌측 사이드바
-        self.sidebar = tk.Frame(body, bg=CXTheme.BG_SIDEBAR, width=190)
+        self.sidebar = tk.Frame(body, bg=CXTheme.BG_SIDEBAR, width=205)
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
         self.build_sidebar()
@@ -1137,12 +1137,24 @@ class App:
 
         self.nav_btns = {}
         def nav_button(name, key, icon=""):
-            btn = tk.Button(self.sidebar, text=f"{icon}  {name}", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED,
-                            activebackground="#1E1F24", activeforeground=CXTheme.TEXT_MAIN, relief="flat", bd=0,
-                            anchor="w", padx=14, pady=7, font=("Segoe UI", 9, "bold"), cursor="hand2",
-                            command=lambda: self.switch_nav(key))
-            btn.pack(fill="x", pady=1)
-            self.nav_btns[key] = btn
+            row = tk.Frame(self.sidebar, bg=CXTheme.BG_SIDEBAR, cursor="hand2")
+            row.pack(fill="x", padx=6, pady=1)
+
+            ic_lbl = tk.Label(row, text=icon, bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED,
+                              font=("Segoe UI", 9), width=3, anchor="center")
+            ic_lbl.pack(side="left", padx=(4, 4), pady=6)
+
+            tx_lbl = tk.Label(row, text=name, bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED,
+                              font=("Segoe UI", 9, "bold"), anchor="w")
+            tx_lbl.pack(side="left", fill="x", expand=True, pady=6)
+
+            def _on_click(e=None):
+                self.switch_nav(key)
+
+            for w in (row, ic_lbl, tx_lbl):
+                w.bind("<Button-1>", _on_click)
+
+            self.nav_btns[key] = (row, ic_lbl, tx_lbl)
 
         section_label("골자 (CORE)")
         nav_button("십자선 (프리셋)", "crosshairs", "🎯")
@@ -1151,21 +1163,40 @@ class App:
 
         section_label("사용자 지정 (CUSTOM)")
         nav_button("디자이너 (메인)", "designer", "🎨")
-        nav_button("이미지 오버레이", "image", "🖼️")
-        nav_button("키바인드", "keybinds", "⌨️")
+        nav_button("이미지 오버레이", "image", "🖼")
+        nav_button("키바인드", "keybinds", "⌨")
 
-        # 하단 단축키 & 버전/업데이트 확인 버튼
-        bot_box = tk.Frame(self.sidebar, bg="#131418", padx=10, pady=10)
+        # 하단 단축키 & 버전/업데이트 확인 박스 (글자 겹침 방지 및 카드형 정돈)
+        bot_box = tk.Frame(self.sidebar, bg="#131418", highlightthickness=1,
+                           highlightbackground="#23252E", padx=10, pady=10)
         bot_box.pack(side="bottom", fill="x", padx=10, pady=12)
-        tk.Label(bot_box, text=f"CrossPro {CURRENT_VERSION}",
-                 bg="#131418", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(0, 2))
-        tk.Label(bot_box, text="F8: 표시 토글 | F9: 설정창\nCtrl+F12: 프로그램 종료",
-                 bg="#131418", fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 7), justify="left").pack(anchor="w", pady=(0, 6))
-        
+
+        v_row = tk.Frame(bot_box, bg="#131418")
+        v_row.pack(fill="x", pady=(0, 6))
+        tk.Label(v_row, text=f"CrossPro {CURRENT_VERSION}",
+                 bg="#131418", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold")).pack(side="left")
+
+        # 개별 행으로 단축키 분리 배치 (겹침 및 우측 잘림 원천 차단)
+        keys_data = [
+            ("F8", "표시 / 숨김"),
+            ("F9", "설정창 토글"),
+            ("Ctrl+F12", "프로그램 종료")
+        ]
+        for key_text, desc_text in keys_data:
+            k_row = tk.Frame(bot_box, bg="#131418")
+            k_row.pack(fill="x", pady=2)
+            badge = tk.Label(k_row, text=key_text, bg="#20222A", fg=CXTheme.ACCENT_ORANGE,
+                             font=("Segoe UI", 7, "bold"), padx=4, pady=1, relief="flat")
+            badge.pack(side="left")
+            desc = tk.Label(k_row, text=desc_text, bg="#131418", fg=CXTheme.TEXT_MUTED,
+                            font=("Segoe UI", 8))
+            desc.pack(side="left", padx=(6, 0))
+
         btn_upd = tk.Button(bot_box, text="🔄 업데이트 확인", bg="#202228", fg=CXTheme.TEXT_MAIN,
-                            activebackground=CXTheme.ACCENT_ORANGE, relief="flat", bd=0, padx=6, pady=3,
+                            activebackground=CXTheme.ACCENT_ORANGE, activeforeground="#FFFFFF",
+                            relief="flat", bd=0, padx=6, pady=5,
                             font=("Segoe UI", 8, "bold"), cursor="hand2", command=self.manual_check_update)
-        btn_upd.pack(fill="x")
+        btn_upd.pack(fill="x", pady=(8, 0))
 
     def manual_check_update(self):
         def _check():
@@ -1191,11 +1222,16 @@ class App:
 
     def switch_nav(self, key):
         self.current_nav = key
-        for k, btn in self.nav_btns.items():
+        for k, widgets in self.nav_btns.items():
+            row, ic_lbl, tx_lbl = widgets
             if k == key:
-                btn.configure(bg="#1E1F24", fg=CXTheme.ACCENT_ORANGE)
+                row.configure(bg="#1E1F24")
+                ic_lbl.configure(bg="#1E1F24", fg=CXTheme.ACCENT_ORANGE)
+                tx_lbl.configure(bg="#1E1F24", fg=CXTheme.ACCENT_ORANGE)
             else:
-                btn.configure(bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED)
+                row.configure(bg=CXTheme.BG_SIDEBAR)
+                ic_lbl.configure(bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED)
+                tx_lbl.configure(bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED)
                 
         # 뷰 전환
         for v in self.views.values():
@@ -2356,13 +2392,32 @@ class App:
         self.update_actual_preview()
 
     def update_mini_preview(self):
-        """좌측 상단 레이어 카드 안의 80x80 미니 프리뷰 실시간 업데이트"""
-        img = self.overlay.render(self.cfg, 40, 40)
-        # 80x80 캔버스 중앙에 표시
-        crop_size = 80
-        cx = CANVAS // 2
-        cropped = img.crop((cx - 40, cx - 40, cx + 40, cx + 40))
-        self.preview_photo = ImageTk.PhotoImage(cropped)
+        """좌측 상단 레이어 카드 안의 80x80 미니 프리뷰 실시간 업데이트 (체커보드 & 중심 가이드)"""
+        if not hasattr(self, "preview_cv") or not self.preview_cv.winfo_exists():
+            return
+        cx = CANVAS / 2.0
+        cy = CANVAS / 2.0
+        rendered = self.overlay.render(self.cfg, cx, cy)
+        
+        # 80x80 크롭 (캔버스 정중앙 기준)
+        cropped = rendered.crop((int(cx - 40), int(cy - 40), int(cx + 40), int(cy + 40)))
+
+        # Crosshair X 스타일 다크 체커 격자 + 미세 중심 가이드선 배경
+        bg = Image.new("RGBA", (80, 80), (18, 19, 22, 255))
+        d = ImageDraw.Draw(bg)
+        for y in range(0, 80, 8):
+            for x in range(0, 80, 8):
+                if ((x // 8) + (y // 8)) % 2 == 1:
+                    d.rectangle([x, y, x + 7, y + 7], fill=(25, 26, 31, 255))
+        
+        # 중심 가이드선 (아주 연한 회색)
+        d.line([(40, 0), (40, 80)], fill=(38, 41, 50, 255))
+        d.line([(0, 40), (80, 40)], fill=(38, 41, 50, 255))
+
+        # 크로스헤어 오버레이 합성
+        bg.alpha_composite(cropped)
+
+        self.preview_photo = ImageTk.PhotoImage(bg)
         self.preview_cv.delete("all")
         self.preview_cv.create_image(40, 40, image=self.preview_photo)
 
