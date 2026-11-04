@@ -122,6 +122,12 @@ user32.SetWindowPos.argtypes = [
     wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
     ctypes.c_int, ctypes.c_int, ctypes.c_uint
 ]
+user32.SetWindowPos.restype = wintypes.BOOL
+try:
+    user32.BringWindowToTop.argtypes = [wintypes.HWND]
+    user32.BringWindowToTop.restype = wintypes.BOOL
+except Exception:
+    pass
 user32.UpdateLayeredWindow.argtypes = [
     wintypes.HWND, wintypes.HDC, ctypes.POINTER(wintypes.POINT),
     ctypes.POINTER(wintypes.SIZE), wintypes.HDC,
@@ -144,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.0"
+CURRENT_VERSION = "v1.0.1"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -350,9 +356,12 @@ class Overlay:
         self.root = root
         self.win = tk.Toplevel(root)
         self.win.overrideredirect(True)
+        self.win.attributes("-topmost", True)
         self.win.geometry(f"{CANVAS}x{CANVAS}+0+0")
         self.visible = True
         self.last = None
+        self.last_sw = 0
+        self.last_sh = 0
         self.current_fire_spread = 0.0
         self.cached_custom_image = None
         self.cached_image_path = ""
@@ -363,13 +372,26 @@ class Overlay:
             self.hwnd, GWL_EXSTYLE,
             ex | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST
         )
+        if dwmapi:
+            try:
+                val = ctypes.c_int(1)
+                # DWMWA_TRANSITIONS_FORCEDISABLED = 3 (전체화면 게임 전환 시 애니메이션 및 숨김 방지)
+                dwmapi.DwmSetWindowAttribute(self.hwnd, 3, ctypes.byref(val), 4)
+            except Exception:
+                pass
 
     def keep_on_top(self):
+        """25ms 초고속 Z-Order 하이퍼 탑모스트 - 전체화면 게임(창모드/FSO) 위에서도 100% 최상위 고정"""
         if self.visible:
-            user32.SetWindowPos(
-                self.hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
-            )
+            try:
+                # SWP_NOMOVE(0x2) | SWP_NOSIZE(0x1) | SWP_NOACTIVATE(0x10) | SWP_SHOWWINDOW(0x40) = 0x53
+                user32.SetWindowPos(
+                    self.hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | 0x0040
+                )
+                user32.BringWindowToTop(self.hwnd)
+            except Exception:
+                pass
 
     def toggle(self):
         self.visible = not self.visible
@@ -607,6 +629,8 @@ class Overlay:
             return
         sw = user32.GetSystemMetrics(0)
         sh = user32.GetSystemMetrics(1)
+        self.last_sw = sw
+        self.last_sh = sh
 
         # 화면 정중앙 픽셀 기준
         tx = sw / 2.0 + float(c.get("offset_x", 0.0))
@@ -619,6 +643,7 @@ class Overlay:
 
         img = self.render(c, cx, cy, self.current_fire_spread).convert("RGBa")
         self.blit(img.tobytes("raw", "BGRa"), wx, wy)
+        self.keep_on_top()
 
     def blit(self, data, x, y):
         hdc_screen = user32.GetDC(None)
@@ -1061,10 +1086,16 @@ class App:
         tk.Label(logo_frame, text="Crosshair", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 12, "bold")).pack(side="left")
         tk.Label(logo_frame, text=" X", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 13, "bold")).pack(side="left")
         
-        # 우측 상단 상태 표시 배지
+        # 우측 상단 상태 표시 배지 & 전체화면 팁
         top_right = tk.Frame(top_bar, bg=CXTheme.BG_SIDEBAR)
         top_right.pack(side="right", padx=16)
         
+        btn_fs_quick = tk.Button(top_right, text="🎮 전체화면 가이드", bg="#202228", fg=CXTheme.ACCENT_ORANGE,
+                                 activebackground="#2A2C34", activeforeground="#FFFFFF",
+                                 relief="flat", bd=0, padx=8, pady=3, cursor="hand2", font=("Segoe UI", 8, "bold"),
+                                 command=lambda: self.switch_nav("fullscreen_mode"))
+        btn_fs_quick.pack(side="left", padx=6)
+
         self.badge_lbl = tk.Label(top_right, text="● 표시됨", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold"))
         self.badge_lbl.pack(side="left", padx=8)
         
@@ -1094,6 +1125,7 @@ class App:
         self.build_presets_view()
         self.build_image_view()
         self.build_keybinds_view()
+        self.build_fullscreen_guide_view()
         
         self.switch_nav("designer")
 
@@ -1115,6 +1147,7 @@ class App:
         section_label("골자 (CORE)")
         nav_button("십자선 (프리셋)", "crosshairs", "🎯")
         nav_button("위치 및 크기", "position", "📐")
+        nav_button("전체화면 게임 설정", "fullscreen_mode", "🎮")
 
         section_label("사용자 지정 (CUSTOM)")
         nav_button("디자이너 (메인)", "designer", "🎨")
@@ -2150,6 +2183,91 @@ class App:
             tk.Label(r, text=k, bg="#2A2C34", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold"), width=12, padx=4, pady=2).pack(side="left")
             tk.Label(r, text=desc, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 9)).pack(side="left", padx=10)
 
+    # ---------- 전체화면 게임 설정 뷰 ----------
+    def build_fullscreen_guide_view(self):
+        view = tk.Frame(self.content_area, bg=CXTheme.BG_MAIN)
+        self.views["fullscreen_mode"] = view
+
+        # 스크롤 가능 컨테이너
+        canvas = tk.Canvas(view, bg=CXTheme.BG_MAIN, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(view, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=CXTheme.BG_MAIN)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        def _on_canvas_configure(event):
+            canvas.itemconfig(canvas_window, width=event.width)
+        canvas.bind("<Configure>", _on_canvas_configure)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # 1. 하이퍼 탑모스트 상태 카드
+        status_card = self.create_card(scrollable_frame, "⚡ 하이퍼 탑모스트 엔진 (Hyper-TopMost Engine)")
+        status_card.pack(fill="x", pady=(0, 12))
+        
+        row1 = tk.Frame(status_card, bg=CXTheme.BG_CARD)
+        row1.pack(fill="x", padx=12, pady=6)
+        tk.Label(row1, text="엔진 상태:", bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 9)).pack(side="left")
+        tk.Label(row1, text="● 25ms 초고속 Z-Order 방어 엔진 상시 가동 중", bg=CXTheme.BG_CARD, fg="#00FF66", font=("Segoe UI", 9, "bold")).pack(side="left", padx=8)
+
+        row2 = tk.Frame(status_card, bg=CXTheme.BG_CARD)
+        row2.pack(fill="x", padx=12, pady=(0, 6))
+        desc_text = (
+            "CrossPro는 게임 화면 클릭 및 사격 시 조준선이 뒤로 숨지 않도록\n"
+            "0.025초(40Hz) 주기로 실시간 Z-Order를 최상위(HWND_TOPMOST)로 강제 고정합니다."
+        )
+        tk.Label(row2, text=desc_text, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 8), justify="left").pack(anchor="w")
+
+        # 2. 전체화면 게임에서 100% 띄우는 핵심 3가지
+        guide_card = self.create_card(scrollable_frame, "🖥️ 전체화면 게임에서 조준선 띄우는 방법")
+        guide_card.pack(fill="x", pady=(0, 12))
+
+        tips = [
+            ("⭐ 가장 권장하는 방법: [전체 창 모드 / Borderless]",
+             "게임 내 [설정] -> [화면/비디오] -> [디스플레이 모드]를\n"
+             "'전체 창 모드(Borderless / 테두리 없는 전체화면)'로 변경하시면\n"
+             "전체화면과 화면 크기/주사율/프레임이 100% 동일하면서 조준선이 무조건 완벽하게 표시됩니다!"),
+            ("🛡️ 독점 전체화면 (Exclusive Fullscreen) 게임의 경우",
+             "게임 실행 파일 (.exe) 우클릭 -> [속성] -> [호환성] 탭 이동 ->\n"
+             "'전체 화면 최적화 사용 안 함'에 체크가 되어 있다면 [체크 해제] (Windows 최적화 활성화).\n"
+             "이렇게 설정하시면 Windows DWM이 작동하여 조준선을 게임 위에 렌더링합니다."),
+            ("🎯 서든어택 / 4:3 해상도 변경 게임",
+             "CrossPro는 게임 실행 시 화면 해상도가 달라져도\n"
+             "실시간으로 해상도 변경을 감지하여 화면 정중앙 픽셀을 자동으로 오토 캘리브레이션합니다.")
+        ]
+        for title, detail in tips:
+            box = tk.Frame(guide_card, bg="#16181F", padx=12, pady=10, highlightthickness=1, highlightbackground="#252834")
+            box.pack(fill="x", padx=10, pady=5)
+            tk.Label(box, text=title, bg="#16181F", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            tk.Label(box, text=detail, bg="#16181F", fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(3, 0))
+
+        # 3. 주요 게임별 빠른 세팅 가이드
+        games_card = self.create_card(scrollable_frame, "🎮 주요 인기 FPS 게임별 최적 설정")
+        games_card.pack(fill="x", pady=(0, 12))
+
+        game_settings = [
+            ("발로란트 (VALORANT)", "설정 -> 비디오 -> 일반 -> 화면 모드: [전체 창 모드]"),
+            ("오버워치 2 (Overwatch 2)", "설정 -> 비디오 -> 디스플레이 모드: [테두리 없는 창모드]"),
+            ("배틀그라운드 (PUBG)", "환경설정 -> 그래픽 -> 디스플레이 모드: [전체 창모드]"),
+            ("카운터 스트라이크 2 (CS2)", "설정 -> 비디오 -> 디스플레이 모드: [전체 화면 (창)]"),
+            ("서든어택 (Sudden Attack)", "옵션 -> 디스플레이 -> [창 모드] 또는 게임 exe 전체화면 최적화"),
+            ("리그 오브 레전드 (LoL)", "설정 -> 화면 -> 창 모드: [테두리 없음]")
+        ]
+        for gname, gset in game_settings:
+            gr = tk.Frame(games_card, bg=CXTheme.BG_CARD)
+            gr.pack(fill="x", padx=12, pady=4)
+            tk.Label(gr, text=gname, bg="#252833", fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 8, "bold"), width=22, anchor="w", padx=6, pady=2).pack(side="left")
+            tk.Label(gr, text=gset, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 8)).pack(side="left", padx=8)
+
     # ---------- UI 헬퍼 컴포넌트 ----------
     def create_card(self, parent, title):
         card = tk.Frame(parent, bg=CXTheme.BG_CARD, highlightthickness=1, highlightbackground=CXTheme.BG_CARD_BORDER, padx=4, pady=6)
@@ -2372,6 +2490,10 @@ class App:
 
     def poll_keys(self):
         ctrl = bool(user32.GetAsyncKeyState(VK["CTRL"]) & 0x8000)
+        # 게임 내 좌클릭/우클릭 시 즉시 최상위 재진입
+        if (user32.GetAsyncKeyState(VK["LBUTTON"]) & 0x8000) or (user32.GetAsyncKeyState(0x02) & 0x8000):
+            self.overlay.keep_on_top()
+
         if self.pressed("F8"):
             self.overlay.toggle()
             self.badge_lbl.configure(
@@ -2388,8 +2510,19 @@ class App:
         self.root.after(30, self.poll_keys)
 
     def top_loop(self):
-        self.overlay.keep_on_top()
-        self.root.after(1000, self.top_loop)
+        if self.overlay.visible:
+            # 해상도 변경 감지 (게임 시작/종료 시 해상도 동적 대응)
+            sw = user32.GetSystemMetrics(0)
+            sh = user32.GetSystemMetrics(1)
+            last_sw = getattr(self.overlay, "last_sw", None)
+            last_sh = getattr(self.overlay, "last_sh", None)
+            if last_sw and last_sh and (sw != last_sw or sh != last_sh):
+                if self.overlay.last:
+                    self.overlay.draw(self.overlay.last)
+            else:
+                self.overlay.keep_on_top()
+        # 25ms 초고속 주기로 게임 화면 클릭 시에도 밀림 없이 최상위 유지 (40Hz 하이퍼 탑모스트)
+        self.root.after(25, self.top_loop)
 
     def quit(self):
         if getattr(self, "tray_icon", None):
