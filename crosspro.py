@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.3"
+CURRENT_VERSION = "v1.0.4"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -969,7 +969,7 @@ class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.withdraw()
-        self.root.title("CROSS PRO - Ultimate Crosshair Pro")
+        self.root.title("CROSS PRO")
         self.root.geometry("1080x740")
         self.root.minsize(980, 680)
         self.root.configure(bg=CXTheme.BG_MAIN)
@@ -1065,7 +1065,7 @@ class App:
         try:
             menu = pystray.Menu(
                 pystray.MenuItem("⚙️ 설정창 열기 / 닫기 (F9)", lambda icon, item: self.root.after(0, self.toggle_settings), default=True),
-                pystray.MenuItem("👁️ 크로스헤어 켜기 / 끄기 (F8)", lambda icon, item: self.root.after(0, self.overlay.toggle)),
+                pystray.MenuItem("👁️ 크로스헤어 켜기 / 끄기 (F8)", lambda icon, item: self.root.after(0, self.toggle_crosshair)),
                 pystray.MenuItem("🔄 다음 프로필로 전환 (F10)", lambda icon, item: self.root.after(0, self.next_profile)),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("❌ 프로그램 완전 종료 (Ctrl+F12)", lambda icon, item: self.root.after(0, self.quit))
@@ -1086,25 +1086,35 @@ class App:
         tk.Label(logo_frame, text="CROSS", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 12, "bold")).pack(side="left")
         tk.Label(logo_frame, text=" PRO", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 13, "bold")).pack(side="left")
         
-        # 우측 상단 상태 표시 배지 & 전체화면 팁
+        # 우측 상단 컨트롤 영역 (조준선 끄기/켜기 버튼 & 완전 종료 버튼 & 창 최소화/닫기)
         top_right = tk.Frame(top_bar, bg=CXTheme.BG_SIDEBAR)
         top_right.pack(side="right", padx=16)
         
-        btn_fs_quick = tk.Button(top_right, text="🎮 전체화면 가이드", bg="#202228", fg=CXTheme.ACCENT_ORANGE,
-                                 activebackground="#2A2C34", activeforeground="#FFFFFF",
-                                 relief="flat", bd=0, padx=8, pady=3, cursor="hand2", font=("Segoe UI", 8, "bold"),
-                                 command=lambda: self.switch_nav("fullscreen_mode"))
-        btn_fs_quick.pack(side="left", padx=6)
+        # 1. 조준선 끄기/켜기 버튼 (F8 연동)
+        self.btn_toggle_crosshair = tk.Button(
+            top_right, text="● 조준선 끄기", bg="#261A14", fg=CXTheme.ACCENT_ORANGE,
+            activebackground="#332018", activeforeground="#FFA866",
+            relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+            font=("Segoe UI", 9, "bold"), command=self.toggle_crosshair
+        )
+        self.btn_toggle_crosshair.pack(side="left", padx=4)
 
-        self.badge_lbl = tk.Label(top_right, text="● 표시됨", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold"))
-        self.badge_lbl.pack(side="left", padx=8)
-        
+        # 2. 프로그램 완전 종료 버튼
+        btn_quit = tk.Button(
+            top_right, text="❌ 완전 종료", bg="#251618", fg="#FF5555",
+            activebackground="#E53935", activeforeground="#FFFFFF",
+            relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+            font=("Segoe UI", 9, "bold"), command=self.quit
+        )
+        btn_quit.pack(side="left", padx=4)
+
+        # 3. 설정창 최소화 (트레이 숨김)
         btn_min = tk.Button(top_right, text="—", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED, relief="flat", bd=0,
-                            cursor="hand2", font=("Segoe UI", 9), command=self.hide_settings)
-        btn_min.pack(side="left", padx=4)
+                            cursor="hand2", font=("Segoe UI", 10), command=self.hide_settings)
+        btn_min.pack(side="left", padx=3)
         btn_close = tk.Button(top_right, text="✕", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED, relief="flat", bd=0,
                               cursor="hand2", font=("Segoe UI", 10), command=self.hide_settings)
-        btn_close.pack(side="left", padx=4)
+        btn_close.pack(side="left", padx=3)
 
         # 메인 영역 (사이드바 + 컨텐츠 뷰)
         body = tk.Frame(self.root, bg=CXTheme.BG_MAIN)
@@ -1125,7 +1135,6 @@ class App:
         self.build_presets_view()
         self.build_image_view()
         self.build_keybinds_view()
-        self.build_fullscreen_guide_view()
         
         self.switch_nav("designer")
 
@@ -1159,7 +1168,6 @@ class App:
         section_label("골자 (CORE)")
         nav_button("십자선 (프리셋)", "crosshairs", "🎯")
         nav_button("위치 및 크기", "position", "📐")
-        nav_button("전체화면 게임 설정", "fullscreen_mode", "🎮")
 
         section_label("사용자 지정 (CUSTOM)")
         nav_button("디자이너 (메인)", "designer", "🎨")
@@ -1594,7 +1602,7 @@ class App:
         left_box.pack(side="left", padx=(0, 16))
 
         self.img_cv = tk.Canvas(left_box, width=384, height=384, bg="#111215", highlightthickness=1,
-                                highlightbackground=CXTheme.BG_CARD_BORDER, cursor="pencil")
+                                highlightbackground=CXTheme.BG_CARD_BORDER, cursor="arrow")
         self.img_cv.pack()
 
         # 좌클릭 (붓 그리기 / 지우개 / 중심점)
@@ -1841,7 +1849,7 @@ class App:
             )
         cursor_map = {"brush": "pencil", "eraser": "dotbox", "anchor": "crosshair"}
         if hasattr(self, "img_cv"):
-            self.img_cv.configure(cursor=cursor_map.get(tool_name, "crosshair"))
+            self.img_cv.configure(cursor="arrow")
 
     def set_brush_color(self, hex_col):
         self.pixel_brush_hex = hex_col
@@ -2039,13 +2047,13 @@ class App:
         self.img_disp_oy = disp_oy
 
         # 체크보드 투명 배경 생성
-        bg = Image.new("RGBA", (CV_SZ, CV_SZ), (18, 19, 22, 255))
+        bg = Image.new("RGBA", (CV_SZ, CV_SZ), (150, 152, 158, 255))
         d = ImageDraw.Draw(bg)
         grid_sz = 16
         for gy in range(0, CV_SZ, grid_sz):
             for gx in range(0, CV_SZ, grid_sz):
                 if ((gx // grid_sz) + (gy // grid_sz)) % 2 == 1:
-                    d.rectangle([gx, gy, gx + grid_sz - 1, gy + grid_sz - 1], fill=(25, 27, 32, 255))
+                    d.rectangle([gx, gy, gx + grid_sz - 1, gy + grid_sz - 1], fill=(120, 122, 128, 255))
 
         # 픽셀 아트 이미지 확대 합성 (NEAREST로 완전 칼사각 픽셀 유지)
         disp_img = self.cached_loaded_pil_img.resize((disp_w, disp_h), Image.Resampling.NEAREST)
@@ -2055,10 +2063,10 @@ class App:
         if self.show_pixel_grid and disp_scale >= 4.0:
             for x in range(orig_w + 1):
                 lx = int(disp_ox + x * disp_scale)
-                d.line([(lx, disp_oy), (lx, disp_oy + disp_h)], fill=(40, 42, 50, 180), width=1)
+                d.line([(lx, disp_oy), (lx, disp_oy + disp_h)], fill=(90, 92, 100, 200), width=1)
             for y in range(orig_h + 1):
                 ly = int(disp_oy + y * disp_scale)
-                d.line([(disp_ox, ly), (disp_ox + disp_w, ly)], fill=(40, 42, 50, 180), width=1)
+                d.line([(disp_ox, ly), (disp_ox + disp_w, ly)], fill=(90, 92, 100, 200), width=1)
 
         self.rendered_img_photo = ImageTk.PhotoImage(bg)
         self.img_cv.delete("all")
@@ -2219,92 +2227,6 @@ class App:
             tk.Label(r, text=k, bg="#2A2C34", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold"), width=12, padx=4, pady=2).pack(side="left")
             tk.Label(r, text=desc, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 9)).pack(side="left", padx=10)
 
-    # ---------- 전체화면 게임 설정 뷰 ----------
-    def build_fullscreen_guide_view(self):
-        view = tk.Frame(self.content_area, bg=CXTheme.BG_MAIN)
-        self.views["fullscreen_mode"] = view
-
-        # 스크롤 가능 컨테이너
-        canvas = tk.Canvas(view, bg=CXTheme.BG_MAIN, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(view, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg=CXTheme.BG_MAIN)
-
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        def _on_canvas_configure(event):
-            canvas.itemconfig(canvas_window, width=event.width)
-        canvas.bind("<Configure>", _on_canvas_configure)
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # 1. 하이퍼 탑모스트 상태 카드
-        status_card = self.create_card(scrollable_frame, "⚡ 하이퍼 탑모스트 엔진 (Hyper-TopMost Engine)")
-        status_card.pack(fill="x", pady=(0, 12))
-        
-        row1 = tk.Frame(status_card, bg=CXTheme.BG_CARD)
-        row1.pack(fill="x", padx=12, pady=6)
-        tk.Label(row1, text="엔진 상태:", bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 9)).pack(side="left")
-        tk.Label(row1, text="● 25ms 초고속 Z-Order 방어 엔진 상시 가동 중", bg=CXTheme.BG_CARD, fg="#00FF66", font=("Segoe UI", 9, "bold")).pack(side="left", padx=8)
-
-        row2 = tk.Frame(status_card, bg=CXTheme.BG_CARD)
-        row2.pack(fill="x", padx=12, pady=(0, 6))
-        desc_text = (
-            "CrossPro는 게임 화면 클릭 및 사격 시 조준선이 뒤로 숨지 않도록\n"
-            "0.025초(40Hz) 주기로 실시간 Z-Order를 최상위(HWND_TOPMOST)로 강제 고정합니다."
-        )
-        tk.Label(row2, text=desc_text, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 8), justify="left").pack(anchor="w")
-
-        # 2. 전체화면 게임에서 100% 띄우는 핵심 3가지
-        guide_card = self.create_card(scrollable_frame, "🖥️ 전체화면 게임에서 조준선 띄우는 방법")
-        guide_card.pack(fill="x", pady=(0, 12))
-
-        tips = [
-            ("⭐ 가장 권장하는 방법: [전체 창 모드 / Borderless]",
-             "게임 내 [설정] -> [화면/비디오] -> [디스플레이 모드]를\n"
-             "'전체 창 모드(Borderless / 테두리 없는 전체화면)'로 변경하시면\n"
-             "전체화면과 화면 크기/주사율/프레임이 100% 동일하면서 조준선이 무조건 완벽하게 표시됩니다!"),
-            ("🛡️ 독점 전체화면 (Exclusive Fullscreen) 게임의 경우",
-             "게임 실행 파일 (.exe) 우클릭 -> [속성] -> [호환성] 탭 이동 ->\n"
-             "'전체 화면 최적화 사용 안 함'에 체크가 되어 있다면 [체크 해제] (Windows 최적화 활성화).\n"
-             "이렇게 설정하시면 Windows DWM이 작동하여 조준선을 게임 위에 렌더링합니다."),
-            ("🎯 서든어택 / 4:3 해상도 변경 게임",
-             "CrossPro는 게임 실행 시 화면 해상도가 달라져도\n"
-             "실시간으로 해상도 변경을 감지하여 화면 정중앙 픽셀을 자동으로 오토 캘리브레이션합니다.")
-        ]
-        for title, detail in tips:
-            box = tk.Frame(guide_card, bg="#16181F", padx=12, pady=10, highlightthickness=1, highlightbackground="#252834")
-            box.pack(fill="x", padx=10, pady=5)
-            tk.Label(box, text=title, bg="#16181F", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold")).pack(anchor="w")
-            tk.Label(box, text=detail, bg="#16181F", fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 8), justify="left").pack(anchor="w", pady=(3, 0))
-
-        # 3. 주요 게임별 빠른 세팅 가이드
-        games_card = self.create_card(scrollable_frame, "🎮 주요 인기 FPS 게임별 최적 설정")
-        games_card.pack(fill="x", pady=(0, 12))
-
-        game_settings = [
-            ("발로란트 (VALORANT)", "설정 -> 비디오 -> 일반 -> 화면 모드: [전체 창 모드]"),
-            ("오버워치 2 (Overwatch 2)", "설정 -> 비디오 -> 디스플레이 모드: [테두리 없는 창모드]"),
-            ("배틀그라운드 (PUBG)", "환경설정 -> 그래픽 -> 디스플레이 모드: [전체 창모드]"),
-            ("카운터 스트라이크 2 (CS2)", "설정 -> 비디오 -> 디스플레이 모드: [전체 화면 (창)]"),
-            ("서든어택 (Sudden Attack)", "옵션 -> 디스플레이 -> [창 모드] 또는 게임 exe 전체화면 최적화"),
-            ("리그 오브 레전드 (LoL)", "설정 -> 화면 -> 창 모드: [테두리 없음]")
-        ]
-        for gname, gset in game_settings:
-            gr = tk.Frame(games_card, bg=CXTheme.BG_CARD)
-            gr.pack(fill="x", padx=12, pady=4)
-            tk.Label(gr, text=gname, bg="#252833", fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 8, "bold"), width=22, anchor="w", padx=6, pady=2).pack(side="left")
-            tk.Label(gr, text=gset, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 8)).pack(side="left", padx=8)
-
-    # ---------- UI 헬퍼 컴포넌트 ----------
     def create_card(self, parent, title):
         card = tk.Frame(parent, bg=CXTheme.BG_CARD, highlightthickness=1, highlightbackground=CXTheme.BG_CARD_BORDER, padx=4, pady=6)
         hdr = tk.Frame(card, bg=CXTheme.BG_CARD)
@@ -2529,6 +2451,20 @@ class App:
         self.root.withdraw()
         self.settings_visible = False
 
+    def toggle_crosshair(self):
+        self.overlay.toggle()
+        self.update_toggle_btn()
+
+    def update_toggle_btn(self):
+        if not hasattr(self, "btn_toggle_crosshair"):
+            return
+        if self.overlay.visible:
+            self.btn_toggle_crosshair.configure(text="● 조준선 끄기", bg="#261A14", fg=CXTheme.ACCENT_ORANGE,
+                                                activebackground="#332018", activeforeground="#FFA866")
+        else:
+            self.btn_toggle_crosshair.configure(text="○ 조준선 켜기", bg="#1B1C22", fg=CXTheme.TEXT_MUTED,
+                                                activebackground="#252730", activeforeground=CXTheme.TEXT_MAIN)
+
     def toggle_settings(self):
         if self.settings_visible:
             self.hide_settings()
@@ -2550,11 +2486,7 @@ class App:
             self.overlay.keep_on_top()
 
         if self.pressed("F8"):
-            self.overlay.toggle()
-            self.badge_lbl.configure(
-                text="● 표시됨" if self.overlay.visible else "○ 숨김",
-                fg=CXTheme.ACCENT_ORANGE if self.overlay.visible else CXTheme.TEXT_MUTED
-            )
+            self.toggle_crosshair()
         if self.pressed("F9"):
             self.toggle_settings()
         if self.pressed("F10"):
