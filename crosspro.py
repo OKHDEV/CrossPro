@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.5"
+CURRENT_VERSION = "v1.0.6"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -1109,13 +1109,6 @@ class App:
         )
         btn_quit.pack(side="left", padx=4)
 
-        # 3. 설정창 최소화 (트레이 숨김)
-        btn_min = tk.Button(top_right, text="—", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED, relief="flat", bd=0,
-                            cursor="hand2", font=("Segoe UI", 10), command=self.hide_settings)
-        btn_min.pack(side="left", padx=3)
-        btn_close = tk.Button(top_right, text="✕", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MUTED, relief="flat", bd=0,
-                              cursor="hand2", font=("Segoe UI", 10), command=self.hide_settings)
-        btn_close.pack(side="left", padx=3)
 
         # 메인 영역 (사이드바 + 컨텐츠 뷰)
         body = tk.Frame(self.root, bg=CXTheme.BG_MAIN)
