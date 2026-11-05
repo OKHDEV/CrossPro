@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 CrossPro - Ultimate FPS Crosshair System (Crosshair X Style)
 - Crosshair X 스타일의 다크 오렌지 프리미엄 게이밍 UI
