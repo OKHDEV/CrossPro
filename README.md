@@ -1,4 +1,4 @@
-# 🎯 CrossPro - Ultimate Crosshair Pro
+# 🎯 CROSS PRO - Ultimate Crosshair Pro
 
 > **100% 칼사각 & 완전 대칭 조준선부터, 그림판급 수제 픽셀 브러시 스튜디오, 자동 업데이트까지 탑재한 최강의 FPS 게이밍 오버레이 시스템**
 

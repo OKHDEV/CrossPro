@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.2"
+CURRENT_VERSION = "v1.0.3"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -817,8 +817,8 @@ class SplashScreen:
         # 타이틀
         t_frame = tk.Frame(card, bg=CXTheme.BG_MAIN)
         t_frame.pack()
-        tk.Label(t_frame, text="Cross", fg="#FFFFFF", bg=CXTheme.BG_MAIN, font=("Segoe UI", 20, "bold")).pack(side="left")
-        tk.Label(t_frame, text="Pro", fg=CXTheme.ACCENT_ORANGE, bg=CXTheme.BG_MAIN, font=("Segoe UI", 20, "bold")).pack(side="left")
+        tk.Label(t_frame, text="CROSS", fg="#FFFFFF", bg=CXTheme.BG_MAIN, font=("Segoe UI", 20, "bold")).pack(side="left")
+        tk.Label(t_frame, text=" PRO", fg=CXTheme.ACCENT_ORANGE, bg=CXTheme.BG_MAIN, font=("Segoe UI", 20, "bold")).pack(side="left")
         
         # 서브타이틀
         tk.Label(card, text="ULTIMATE FPS CROSSHAIR SYSTEM", fg=CXTheme.TEXT_MUTED, bg=CXTheme.BG_MAIN,
@@ -969,7 +969,7 @@ class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.withdraw()
-        self.root.title("Crosshair X - Ultimate Crosshair Pro")
+        self.root.title("CROSS PRO - Ultimate Crosshair Pro")
         self.root.geometry("1080x740")
         self.root.minsize(980, 680)
         self.root.configure(bg=CXTheme.BG_MAIN)
@@ -1027,7 +1027,7 @@ class App:
         
         self.root.after(30, self.poll_keys)
         self.root.after(16, self.fire_anim_loop)
-        self.root.after(1000, self.top_loop)
+        self.root.after(25, self.top_loop)
 
         # 시작 스플래시 창 실행 (로고 + 업데이트 자동 확인)
         self.splash = SplashScreen(self.root, on_ready=self.on_splash_done)
@@ -1070,7 +1070,7 @@ class App:
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("❌ 프로그램 완전 종료 (Ctrl+F12)", lambda icon, item: self.root.after(0, self.quit))
             )
-            self.tray_icon = pystray.Icon("CrossPro", self.icon_image, "Crosshair X Pro", menu)
+            self.tray_icon = pystray.Icon("CrossPro", self.icon_image, "CROSS PRO", menu)
             self.tray_icon.run_detached()
         except Exception as ex:
             print(f"Tray warning: {ex}")
@@ -1083,8 +1083,8 @@ class App:
         
         logo_frame = tk.Frame(top_bar, bg=CXTheme.BG_SIDEBAR)
         logo_frame.pack(side="left", padx=16)
-        tk.Label(logo_frame, text="Crosshair", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 12, "bold")).pack(side="left")
-        tk.Label(logo_frame, text=" X", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 13, "bold")).pack(side="left")
+        tk.Label(logo_frame, text="CROSS", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 12, "bold")).pack(side="left")
+        tk.Label(logo_frame, text=" PRO", bg=CXTheme.BG_SIDEBAR, fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 13, "bold")).pack(side="left")
         
         # 우측 상단 상태 표시 배지 & 전체화면 팁
         top_right = tk.Frame(top_bar, bg=CXTheme.BG_SIDEBAR)
