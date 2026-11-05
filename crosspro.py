@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.6"
+CURRENT_VERSION = "v1.0.7"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -213,6 +213,28 @@ class CXTheme:
     TEXT_MAIN = "#FFFFFF"      # 메인 텍스트
     TEXT_MUTED = "#8E929B"     # 보조 텍스트
     TEXT_DIM = "#565A63"       # 디밍 텍스트
+
+
+def ensure_desktop_shortcut():
+    """exe 실행 시 바탕화면에 CROSS PRO 바로가기 생성 (없을 때만)"""
+    if not getattr(sys, "frozen", False):
+        return
+    try:
+        exe = sys.executable
+        ps = (
+            "$d=[Environment]::GetFolderPath('Desktop');"
+            "$l=Join-Path $d 'CROSS PRO.lnk';"
+            "if(-not (Test-Path $l)){"
+            "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($l);"
+            f"$s.TargetPath='{exe}';"
+            f"$s.WorkingDirectory='{os.path.dirname(exe)}';"
+            f"$s.IconLocation='{exe},0';"
+            "$s.Save()}"
+        )
+        subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                         creationflags=subprocess.CREATE_NO_WINDOW)
+    except Exception as e:
+        print("Shortcut error:", e)
 
 
 def get_icon_image():
@@ -987,6 +1009,7 @@ class App:
                 pass
 
         self.store = load_store()
+        ensure_desktop_shortcut()
         self.sliders = {}
         self.toggles = {}
         self.keystate = {}
