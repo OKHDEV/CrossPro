@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 CrossPro - Ultimate FPS Crosshair System (Crosshair X Style)
 - Crosshair X 스타일의 다크 오렌지 프리미엄 게이밍 UI
@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.4"
+CURRENT_VERSION = "v1.0.5"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -195,7 +195,8 @@ start "" %TARGET_EXE%
         subprocess.Popen(["cmd.exe", "/c", bat_path], startupinfo=startupinfo, creationflags=subprocess.CREATE_NO_WINDOW)
     except Exception as e:
         print("Update restart error:", e)
-    sys.exit(0)
+    # 백그라운드 스레드에서 호출되므로 sys.exit()로는 프로세스가 종료되지 않음 → 강제 종료
+    os._exit(0)
 
 # ---------------- Crosshair X 테마 팔레트 ----------------
 class CXTheme:
