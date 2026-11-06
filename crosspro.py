@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.7"
+CURRENT_VERSION = "v1.0.8"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -163,6 +163,7 @@ def is_newer_version(remote_v, local_v):
 
 def apply_update_and_restart(update_file_path):
     target_exe = os.path.abspath(sys.executable if getattr(sys, "frozen", False) else sys.argv[0])
+    target_dir = os.path.dirname(target_exe)
     bat_path = os.path.join(APP_DIR, "_apply_update.bat")
     pid = os.getpid()
     
@@ -170,18 +171,49 @@ def apply_update_and_restart(update_file_path):
 setlocal
 set OLD_PID={pid}
 set TARGET_EXE="{target_exe}"
+set TARGET_DIR="{target_dir}"
 set NEW_EXE="{update_file_path}"
 
-:wait_loop
+:: 1. PyInstaller _MEIPASS2 환경변수 완전 제거 (새 프로세스가 삭제된 구버전 임시 폴더 참조 방지)
+set _MEIPASS2=
+set _MEIPASS=
+set PYINSTALLER_RESET_ENVIRONMENT=1
+
+:: 2. 기존 프로세스 종료 대기 (최대 15초)
+set WAIT_COUNT=0
+:wait_process
 timeout /t 1 /nobreak >nul
 tasklist /fi "PID eq %OLD_PID%" 2>nul | findstr /i "%OLD_PID%" >nul
-if not errorlevel 1 goto wait_loop
+if not errorlevel 1 (
+    set /a WAIT_COUNT+=1
+    if %WAIT_COUNT% lss 15 goto wait_process
+    taskkill /F /PID %OLD_PID% >nul 2>nul
+)
 
-copy /y %NEW_EXE% %TARGET_EXE% >nul
-del %NEW_EXE% >nul
+:: 프로세스 종료 후 파일 핸들 잠금 해제 및 _MEI 폴더 정리 완료 대기
+timeout /t 2 /nobreak >nul
 
+:: 3. 파일 교체 (파일 잠금이 완전히 풀릴 때까지 최대 15회 재시도)
+set RETRY_COUNT=0
+:copy_loop
+copy /y %NEW_EXE% %TARGET_EXE% >nul 2>nul
+if errorlevel 1 (
+    timeout /t 1 /nobreak >nul
+    set /a RETRY_COUNT+=1
+    if %RETRY_COUNT% lss 15 goto copy_loop
+)
+
+:: 임시 업데이트 파일 삭제
+del /f /q %NEW_EXE% >nul 2>nul
+
+:: 4. 환경 변수 초기화 상태에서 작업 디렉토리 지정하여 새 버전 실행
+set _MEIPASS2=
+set _MEIPASS=
+set PYINSTALLER_RESET_ENVIRONMENT=1
+cd /d %TARGET_DIR%
 start "" %TARGET_EXE%
 
+:: 배치 파일 자체 삭제
 (goto) 2>nul & del "%~f0"
 """
     try:
@@ -192,7 +224,17 @@ start "" %TARGET_EXE%
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = 0
         
-        subprocess.Popen(["cmd.exe", "/c", bat_path], startupinfo=startupinfo, creationflags=subprocess.CREATE_NO_WINDOW)
+        clean_env = os.environ.copy()
+        clean_env.pop("_MEIPASS2", None)
+        clean_env.pop("_MEIPASS", None)
+        clean_env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+        
+        subprocess.Popen(
+            ["cmd.exe", "/c", bat_path],
+            env=clean_env,
+            startupinfo=startupinfo,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
     except Exception as e:
         print("Update restart error:", e)
     # 백그라운드 스레드에서 호출되므로 sys.exit()로는 프로세스가 종료되지 않음 → 강제 종료
@@ -956,6 +998,9 @@ class SplashScreen:
                             pct = 50.0 + (downloaded / max(1, total_bytes)) * 45.0
                             self.msg_queue.put(("progress", pct))
                             self.msg_queue.put(("status", f"새 버전 다운로드 중... {downloaded/(1024*1024):.1f}MB / {total_bytes/(1024*1024):.1f}MB ({int(pct)}%)"))
+                    
+                    if total_bytes > 0 and downloaded < total_bytes:
+                        raise RuntimeError(f"다운로드 불완전 ({downloaded}/{total_bytes} bytes)")
                     
                     self.msg_queue.put(("progress", 100))
                     self.msg_queue.put(("status", "업데이트 다운로드 완료! 자동 설치 후 재실행합니다..."))
