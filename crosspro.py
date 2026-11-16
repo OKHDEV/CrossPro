@@ -21,6 +21,7 @@ import sys
 import threading
 import time
 import urllib.request
+import winsound
 import tkinter as tk
 from tkinter import ttk, colorchooser, messagebox, simpledialog, filedialog
 
@@ -84,6 +85,77 @@ VK = {
     "F8": 0x77, "F9": 0x78, "F10": 0x79, "F12": 0x7B,
     "CTRL": 0x11, "SHIFT": 0x10, "LBUTTON": 0x01
 }
+
+# 키바인드 친화적 명칭 매핑 (0x01 ~ 0xFF)
+VK_NAMES = {
+    0x04: "Mouse 3 (휠클릭)", 0x05: "Mouse 4 (뒤로)", 0x06: "Mouse 5 (앞으로)",
+    0x08: "Backspace", 0x09: "Tab", 0x0D: "Enter", 0x1B: "Esc", 0x20: "Space",
+    0x21: "Page Up", 0x22: "Page Down", 0x23: "End", 0x24: "Home",
+    0x25: "Left", 0x26: "Up", 0x27: "Right", 0x28: "Down",
+    0x2C: "Print Screen", 0x2D: "Insert", 0x2E: "Delete",
+    0xBA: ";", 0xBB: "=", 0xBC: ",", 0xBD: "-", 0xBE: ".", 0xBF: "/", 0xC0: "`",
+    0xDB: "[", 0xDC: "\\", 0xDD: "]", 0xDE: "'",
+    0x6A: "Num *", 0x6B: "Num +", 0x6D: "Num -", 0x6E: "Num .", 0x6F: "Num /",
+}
+for _i in range(1, 25):
+    VK_NAMES[0x70 + _i - 1] = f"F{_i}"
+for _i in range(10):
+    VK_NAMES[0x30 + _i] = str(_i)
+    VK_NAMES[0x60 + _i] = f"Num {_i}"
+for _i in range(26):
+    VK_NAMES[0x41 + _i] = chr(ord("A") + _i)
+
+# 기본 전역 단축키 정의
+DEFAULT_KEYBINDS = {
+    "toggle_crosshair": {
+        "name": "F8",
+        "vk": 0x77,
+        "ctrl": False,
+        "shift": False,
+        "alt": False,
+        "title": "👁️ 조준선 켜기 / 끄기 (토글)",
+        "desc": "인게임 플레이 중 화면 조준선 오버레이를 즉시 표시하거나 숨깁니다."
+    },
+    "toggle_settings": {
+        "name": "F9",
+        "vk": 0x78,
+        "ctrl": False,
+        "shift": False,
+        "alt": False,
+        "title": "⚙️ 설정창 열기 / 닫기 (토글)",
+        "desc": "CROSS PRO 메인 설정창을 화면에 띄우거나 작업표시줄 트레이로 숨깁니다."
+    },
+    "next_profile": {
+        "name": "F10",
+        "vk": 0x79,
+        "ctrl": False,
+        "shift": False,
+        "alt": False,
+        "title": "🔄 다음 프로필로 즉시 전환",
+        "desc": "저장된 크로스헤어 프리셋(TenZ, Demon1 등)을 게임 중 실시간으로 순환 전환합니다."
+    },
+    "quit_app": {
+        "name": "Ctrl + F12",
+        "vk": 0x7B,
+        "ctrl": True,
+        "shift": False,
+        "alt": False,
+        "title": "❌ CROSS PRO 프로그램 완전 종료",
+        "desc": "백그라운드 프로세스와 트레이를 포함한 모든 프로세스를 즉시 종료합니다."
+    }
+}
+
+
+def play_sound(freq=1200, dur=70):
+    def _run():
+        try:
+            winsound.Beep(freq, dur)
+        except Exception:
+            try:
+                winsound.MessageBeep(winsound.MB_OK)
+            except Exception:
+                pass
+    threading.Thread(target=_run, daemon=True).start()
 
 
 class BLENDFUNCTION(ctypes.Structure):
@@ -150,7 +222,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.9"
+CURRENT_VERSION = "v1.0.10"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -344,38 +416,207 @@ DEFAULT = {
     "fire_anim_on": False,
     "fire_spread": 4.0,       # 사격 시 벌어지는 픽셀
     "fire_decay": 0.85,       # 복귀 속도
+
+    # 우클릭 조준 애니메이션 (ADS Aim Animation)
+    "ads_anim_on": False,
+    "ads_tighten": 2.5,       # 우클릭 조준 시 축소되는 픽셀
+    "ads_speed": 0.35,        # 조준 전환 속도 (Lerp)
 }
 
 PRO_PRESETS = {
+    # [1] 발로란트 프로 (VALORANT Champions & VCT Pros)
     "TenZ (청록 십자)": {
-        **DEFAULT, "name": "TenZ (청록 십자)",
+        **DEFAULT, "name": "TenZ (청록 십자)", "category": "VALORANT PRO",
+        "desc": "Sentinels TenZ 시그니처 1-4-2-2 에임 조준선",
         "line_on": True, "line_color": "#00FFFF", "line_len": 4.0, "line_thick": 2.0, "line_gap": 2.0,
         "outline_on": True, "outline_thick": 1.0, "dot_on": False
     },
-    "Yay (녹색 조준점)": {
-        **DEFAULT, "name": "Yay (녹색 조준점)",
-        "line_on": False, "dot_on": True, "dot_shape": "사각", "dot_size": 2.0, "dot_color": "#00FF00",
-        "outline_on": True, "outline_thick": 1.0
-    },
     "Demon1 (미니 화이트 도트)": {
-        **DEFAULT, "name": "Demon1 (미니 화이트 도트)",
+        **DEFAULT, "name": "Demon1 (미니 화이트 도트)", "category": "VALORANT PRO",
+        "desc": "2023 Champions 우승 Demon1의 1탭 헤드샷 2px 도트",
         "line_on": False, "dot_on": True, "dot_shape": "사각", "dot_size": 2.0, "dot_color": "#FFFFFF",
         "outline_on": True, "outline_thick": 1.0
     },
+    "Yay (엘 디아블로 녹색 박스)": {
+        **DEFAULT, "name": "Yay (엘 디아블로 녹색 박스)", "category": "VALORANT PRO",
+        "desc": "El Diablo Yay의 대표적인 안정적 2px 네온 그린 박스",
+        "line_on": False, "dot_on": True, "dot_shape": "사각", "dot_size": 2.0, "dot_color": "#00FF00",
+        "outline_on": True, "outline_thick": 1.0
+    },
     "Aspas (레드 클래식)": {
-        **DEFAULT, "name": "Aspas (레드 클래식)",
+        **DEFAULT, "name": "Aspas (레드 클래식)", "category": "VALORANT PRO",
+        "desc": "세계 최고의 엔트리 Aspas의 1-4-2-2 비비드 레드 십자선",
         "line_on": True, "line_color": "#FF2B2B", "line_len": 4.0, "line_thick": 2.0, "line_gap": 2.0,
         "outline_on": True, "outline_thick": 1.0, "dot_on": False
     },
-    "하트 조준선 (Heart)": {
-        **DEFAULT, "name": "하트 조준선 (Heart)",
+    "Boaster (스마일 옐로우)": {
+        **DEFAULT, "name": "Boaster (스마일 옐로우)", "category": "VALORANT PRO",
+        "desc": "Fnatic 캡틴 Boaster의 밝은 옐로우 콤팩트 십자선",
+        "line_on": True, "line_color": "#FFFF00", "line_len": 3.0, "line_thick": 2.0, "line_gap": 2.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "Chronicle (시안 미니 십자)": {
+        **DEFAULT, "name": "Chronicle (시안 미니 십자)", "category": "VALORANT PRO",
+        "desc": "국제대회 3회 우승 Chronicle의 초밀착 3px 시안 크로스",
+        "line_on": True, "line_color": "#00E5FF", "line_len": 3.0, "line_thick": 2.0, "line_gap": 1.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "Derke (화이트 콤팩트)": {
+        **DEFAULT, "name": "Derke (화이트 콤팩트)", "category": "VALORANT PRO",
+        "desc": "Fnatic 에이스 타격대 Derke의 화이트 1-4-2-2 에임선",
+        "line_on": True, "line_color": "#FFFFFF", "line_len": 4.0, "line_thick": 2.0, "line_gap": 2.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "cNed (터키 스나이퍼 시안)": {
+        **DEFAULT, "name": "cNed (터키 스나이퍼 시안)", "category": "VALORANT PRO",
+        "desc": "오퍼레이터의 신 cNed의 시안 마이크로 도트 십자선",
+        "line_on": True, "line_color": "#00FFA3", "line_len": 2.0, "line_thick": 2.0, "line_gap": 1.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "f0rsakeN (화이트 마이크로 도트)": {
+        **DEFAULT, "name": "f0rsakeN (화이트 마이크로 도트)", "category": "VALORANT PRO",
+        "desc": "Paper Rex f0rsakeN의 극초소형 1.5px 화이트 조준점",
+        "line_on": False, "dot_on": True, "dot_shape": "사각", "dot_size": 1.5, "dot_color": "#FFFFFF",
+        "outline_on": True, "outline_thick": 1.0
+    },
+    "jinggg (퍼플 공격형 십자)": {
+        **DEFAULT, "name": "jinggg (퍼플 공격형 십자)", "category": "VALORANT PRO",
+        "desc": "PRX 레이즈의 상징 jinggg의 눈에 띄는 퍼플 크로스헤어",
+        "line_on": True, "line_color": "#D500F9", "line_len": 4.0, "line_thick": 2.0, "line_gap": 2.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "something (그린 슬림 크로스)": {
+        **DEFAULT, "name": "something (그린 슬림 크로스)", "category": "VALORANT PRO",
+        "desc": "PRX something의 초고속 플릭 전용 네온 그린 십자선",
+        "line_on": True, "line_color": "#00FF00", "line_len": 3.0, "line_thick": 1.0, "line_gap": 1.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "ScreaM (원탭 헤드헌터 블루)": {
+        **DEFAULT, "name": "ScreaM (원탭 헤드헌터 블루)", "category": "VALORANT PRO",
+        "desc": "They talk about my one taps - 원탭 머신 ScreaM의 시안 도트",
+        "line_on": False, "dot_on": True, "dot_shape": "사각", "dot_size": 2.0, "dot_color": "#00E5FF",
+        "outline_on": True, "outline_thick": 1.0
+    },
+    "Buzz (DRX 한국 대표 시안)": {
+        **DEFAULT, "name": "Buzz (DRX 한국 대표 시안)", "category": "VALORANT PRO",
+        "desc": "DRX의 폭발적 엔트리 Buzz의 청록색 정석 1-4-2-2 십자선",
+        "line_on": True, "line_color": "#00FFFF", "line_len": 4.0, "line_thick": 2.0, "line_gap": 2.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "stax (DRX 캡틴 화이트)": {
+        **DEFAULT, "name": "stax (DRX 캡틴 화이트)", "category": "VALORANT PRO",
+        "desc": "대한민국 대표 IGL stax의 클러치 전용 화이트 십자선",
+        "line_on": True, "line_color": "#FFFFFF", "line_len": 3.0, "line_thick": 2.0, "line_gap": 2.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "MaKo (DRX 세계 최고 스모크 그린)": {
+        **DEFAULT, "name": "MaKo (DRX 세계 최고 스모크 그린)", "category": "VALORANT PRO",
+        "desc": "VCT 세계 랭킹 1위 컨트롤러 MaKo의 안정적 그린 십자선",
+        "line_on": True, "line_color": "#00FF7F", "line_len": 4.0, "line_thick": 2.0, "line_gap": 2.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+
+    # [2] 카운터 스트라이크 2 프로 (CS2 / CS:GO Legends)
+    "s1mple (GOAT 옐로우 마이크로)": {
+        **DEFAULT, "name": "s1mple (GOAT 옐로우 마이크로)", "category": "CS2 PRO",
+        "desc": "CS:GO 역대 최고 선수 s1mple의 고시인성 옐로우 초정밀 십자선",
+        "line_on": True, "line_color": "#FFFF00", "line_len": 3.0, "line_thick": 1.5, "line_gap": -1.0,
+        "outline_on": False, "outline_thick": 0.0, "dot_on": False
+    },
+    "ZywOo (프랑스 천재 청록 십자)": {
+        **DEFAULT, "name": "ZywOo (프랑스 천재 청록 십자)", "category": "CS2 PRO",
+        "desc": "메이저 MVP ZywOo의 안정적 시안 슬림 크로스헤어",
+        "line_on": True, "line_color": "#00FFFF", "line_len": 3.0, "line_thick": 1.5, "line_gap": -2.0,
+        "outline_on": False, "outline_thick": 0.0, "dot_on": False
+    },
+    "m0NESY (G2 스나이퍼 그린 미니)": {
+        **DEFAULT, "name": "m0NESY (G2 스나이퍼 그린 미니)", "category": "CS2 PRO",
+        "desc": "신동 스나이퍼 m0NESY의 초고반응 네온 그린 마이크로 크로스",
+        "line_on": True, "line_color": "#00FF00", "line_len": 2.5, "line_thick": 1.0, "line_gap": -3.0,
+        "outline_on": False, "outline_thick": 0.0, "dot_on": False
+    },
+    "NiKo (라이플의 신 시안)": {
+        **DEFAULT, "name": "NiKo (라이플의 신 시안)", "category": "CS2 PRO",
+        "desc": "라이플 에임의 정점 NiKo의 헤드샷 고정형 클래식 십자선",
+        "line_on": True, "line_color": "#00E5FF", "line_len": 3.0, "line_thick": 1.5, "line_gap": -2.0,
+        "outline_on": False, "outline_thick": 0.0, "dot_on": False
+    },
+    "shroud (FPS의 제왕 스카이블루)": {
+        **DEFAULT, "name": "shroud (FPS의 제왕 스카이블루)", "category": "CS2 PRO",
+        "desc": "모든 FPS 게임을 섭렵한 인간 에임봇 shroud의 스카이블루 크로스",
+        "line_on": True, "line_color": "#00B0FF", "line_len": 5.0, "line_thick": 2.0, "line_gap": 3.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "device (덴마크 4회 메이저 레드)": {
+        **DEFAULT, "name": "device (덴마크 4회 메이저 레드)", "category": "CS2 PRO",
+        "desc": "아스트랄리스 왕조의 주역 device의 딥 레드 십자선",
+        "line_on": True, "line_color": "#FF1744", "line_len": 3.5, "line_thick": 2.0, "line_gap": -1.0,
+        "outline_on": False, "outline_thick": 0.0, "dot_on": False
+    },
+    "ropz (럴커 그린 슬림)": {
+        **DEFAULT, "name": "ropz (럴커 그린 슬림)", "category": "CS2 PRO",
+        "desc": "완벽한 크로스헤어 플레이스먼트 ropz의 콤팩트 그린 크로스",
+        "line_on": True, "line_color": "#00E676", "line_len": 2.5, "line_thick": 1.0, "line_gap": -2.0,
+        "outline_on": False, "outline_thick": 0.0, "dot_on": False
+    },
+
+    # [3] 원탭 도트 및 정밀 조준점 (ONE-TAP DOTS)
+    "그린 다이아몬드 도트 (Diamond Dot)": {
+        **DEFAULT, "name": "그린 다이아몬드 도트 (Diamond Dot)", "category": "ONE-TAP DOT",
+        "desc": "원거리 헤드샷에 특화된 2.5px 네온 마름모 조준점",
+        "line_on": False, "dot_on": True, "dot_shape": "마름모", "dot_size": 2.5, "dot_color": "#00FF00",
+        "outline_on": True, "outline_thick": 1.0
+    },
+    "루비 레드 서클 도트 (Red Circle)": {
+        **DEFAULT, "name": "루비 레드 서클 도트 (Red Circle)", "category": "ONE-TAP DOT",
+        "desc": "부드러운 시각적 안정감을 주는 루비 레드 원형 도트",
+        "line_on": False, "dot_on": True, "dot_shape": "원", "dot_size": 2.5, "dot_color": "#FF1744",
+        "outline_on": True, "outline_thick": 1.0
+    },
+    "슈퍼 솔리드 도트 (3px Solid Dot)": {
+        **DEFAULT, "name": "슈퍼 솔리드 도트 (3px Solid Dot)", "category": "ONE-TAP DOT",
+        "desc": "중장거리에서 표적이 절대 가려지지 않는 고시인성 3px 옐로우 도트",
+        "line_on": False, "dot_on": True, "dot_shape": "사각", "dot_size": 3.0, "dot_color": "#FFFF00",
+        "outline_on": True, "outline_thick": 1.0
+    },
+
+    # [4] 특수 전술 & 팬시 조준선 (TACTICAL / FANCY)
+    "하트 조준선 (Pink Heart)": {
+        **DEFAULT, "name": "하트 조준선 (Pink Heart)", "category": "TACTICAL / FANCY",
+        "desc": "45도 회전 기하학 대칭으로 완성된 귀여운 핑크 하트 조준선",
         "line_on": True, "line_color": "#FF4D88", "line_len": 3.0, "line_thick": 3.0, "line_gap": 1.0,
         "line_rot": 45.0, "outline_on": True, "outline_thick": 1.0, "dot_on": True, "dot_shape": "마름모", "dot_size": 2.0
     },
     "스나이퍼 링 (Circle Ring)": {
-        **DEFAULT, "name": "스나이퍼 링 (Circle Ring)",
+        **DEFAULT, "name": "스나이퍼 링 (Circle Ring)", "category": "TACTICAL / FANCY",
+        "desc": "타겟을 원 안에 정확히 가두는 정밀 6px 서클 링",
         "line_on": True, "line_color": "#00FFA3", "line_len": 4.0, "line_thick": 1.0, "line_gap": 5.0,
         "dot_on": True, "dot_shape": "링", "dot_size": 6.0, "dot_color": "#00FFA3", "outline_on": True
+    },
+    "꽃잎 조준선 (Flower Cross)": {
+        **DEFAULT, "name": "꽃잎 조준선 (Flower Cross)", "category": "TACTICAL / FANCY",
+        "desc": "외곽으로 펼쳐지는 네온 옐로우 꽃잎 형상의 예술적 조준선",
+        "line_on": True, "line_color": "#FFEA00", "line_len": 3.0, "line_thick": 3.0, "line_gap": 2.0,
+        "line_rot": 45.0, "outline_on": True, "outline_thick": 1.0, "dot_on": True, "dot_shape": "사각", "dot_size": 2.0
+    },
+    "T자형 전술 조준선 (T-Cross)": {
+        **DEFAULT, "name": "T자형 전술 조준선 (T-Cross)", "category": "TACTICAL / FANCY",
+        "desc": "상단 시야를 개방하여 헤드라인을 확보하는 T자형 크로스헤어",
+        "line_on": True, "line_color": "#00FFA3", "line_len": 4.0, "line_thick": 2.0, "line_gap": 2.0,
+        "arm_top": False, "arm_bottom": True, "arm_left": True, "arm_right": True,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "박스 홀로우 (Hollow Square)": {
+        **DEFAULT, "name": "박스 홀로우 (Hollow Square)", "category": "TACTICAL / FANCY",
+        "desc": "가운데가 시원하게 비어있는 전술용 중공 사각 박스",
+        "line_on": True, "line_color": "#00E5FF", "line_len": 2.0, "line_thick": 2.0, "line_gap": 1.0,
+        "outline_on": True, "outline_thick": 1.0, "dot_on": False
+    },
+    "샷건 서클 (Shotgun Circle)": {
+        **DEFAULT, "name": "샷건 서클 (Shotgun Circle)", "category": "TACTICAL / FANCY",
+        "desc": "산탄 확산 범위를 한눈에 예측할 수 있는 8px 대형 서클 조준점",
+        "line_on": False, "dot_on": True, "dot_shape": "링", "dot_size": 8.0, "dot_color": "#FF9100",
+        "outline_on": True, "outline_thick": 1.0
     }
 }
 
@@ -397,12 +638,23 @@ def load_store():
                     p.setdefault(k, v)
             if data.get("current") not in data.get("profiles", {}):
                 data["current"] = next(iter(data["profiles"]))
+
+            # 단축키 설정 초기화 및 누락 키 보정
+            if "keybinds" not in data or not isinstance(data["keybinds"], dict):
+                data["keybinds"] = {}
+            for act, def_info in DEFAULT_KEYBINDS.items():
+                if act not in data["keybinds"]:
+                    data["keybinds"][act] = dict(def_info)
+                else:
+                    for k_field, v_field in def_info.items():
+                        data["keybinds"][act].setdefault(k_field, v_field)
             return data
         except Exception:
             pass
     store = {
         "current": "TenZ (청록 십자)",
-        "profiles": dict(PRO_PRESETS)
+        "profiles": dict(PRO_PRESETS),
+        "keybinds": {act: dict(info) for act, info in DEFAULT_KEYBINDS.items()}
     }
     return store
 
@@ -428,6 +680,7 @@ class Overlay:
         self.last_sw = 0
         self.last_sh = 0
         self.current_fire_spread = 0.0
+        self.current_ads_tighten = 0.0
         self.cached_custom_image = None
         self.cached_image_path = ""
         self.win.update_idletasks()
@@ -454,7 +707,6 @@ class Overlay:
                     self.hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | 0x0040
                 )
-                user32.BringWindowToTop(self.hwnd)
             except Exception:
                 pass
 
@@ -536,7 +788,7 @@ class Overlay:
         if c.get("line_on", True):
             L = float(c.get("line_len", 6.0))
             T = float(c.get("line_thick", 2.0))
-            G = float(c.get("line_gap", 3.0)) + dynamic_gap_offset
+            G = max(0.0, float(c.get("line_gap", 3.0)) + dynamic_gap_offset)
             rot = float(c.get("line_rot", 0.0)) % 360.0
 
             if L > 0 and T > 0:
@@ -706,7 +958,8 @@ class Overlay:
         cx = CANVAS / 2.0
         cy = CANVAS / 2.0
 
-        img = self.render(c, cx, cy, self.current_fire_spread).convert("RGBa")
+        total_dynamic_offset = self.current_fire_spread - self.current_ads_tighten
+        img = self.render(c, cx, cy, total_dynamic_offset).convert("RGBa")
         self.blit(img.tobytes("raw", "BGRa"), wx, wy)
         self.keep_on_top()
 
@@ -1032,6 +1285,182 @@ class SplashScreen:
         self.on_ready()
 
 
+class ModernColorPicker(tk.Toplevel):
+    """CROSS PRO 전용 내장 다크모드 색상 선택기 (먹통 0%, 실시간 미리보기)"""
+    def __init__(self, parent, initial_color="#00FF00", title="CROSS PRO - 색상 선택", on_select=None):
+        super().__init__(parent)
+        self.title(title)
+        self.configure(bg="#121316")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        self.on_select = on_select
+        self.initial_color = initial_color.upper() if initial_color.startswith("#") else "#00FF00"
+        self.current_color = self.initial_color
+
+        # RGB 초기값 파싱
+        try:
+            h = self.initial_color.lstrip("#")
+            self.r = int(h[0:2], 16)
+            self.g = int(h[2:4], 16)
+            self.b = int(h[4:6], 16)
+        except Exception:
+            self.r, self.g, self.b = 0, 255, 0
+
+        self.geometry("420x460")
+        
+        # 헤더 바
+        hdr = tk.Frame(self, bg="#121316", padx=16, pady=12)
+        hdr.pack(fill="x")
+        tk.Label(hdr, text=title, bg="#121316", fg="#FFFFFF", font=("Segoe UI", 11, "bold")).pack(side="left")
+
+        # 1. 상단 색상 미리보기 박스 (새 색상 vs 이전 색상)
+        prev_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=14, pady=10)
+        prev_card.pack(fill="x", padx=16, pady=(0, 10))
+
+        p_row = tk.Frame(prev_card, bg="#191A1E")
+        p_row.pack(fill="x")
+
+        # 새 색상 견본
+        f_new = tk.Frame(p_row, bg="#191A1E")
+        f_new.pack(side="left", expand=True, fill="both")
+        tk.Label(f_new, text="새 색상 (선택 중)", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 8)).pack(anchor="w")
+        self.swatch_new = tk.Label(f_new, bg=self.current_color, height=2, relief="solid", bd=1, highlightthickness=1, highlightbackground="#3A3D4A")
+        self.swatch_new.pack(fill="x", pady=(2, 0))
+
+        # 화살표
+        tk.Label(p_row, text="◀", bg="#191A1E", fg="#FF6B00", font=("Segoe UI", 12, "bold"), padx=12).pack(side="left")
+
+        # 이전 색상 견본
+        f_old = tk.Frame(p_row, bg="#191A1E")
+        f_old.pack(side="left", expand=True, fill="both")
+        tk.Label(f_old, text="기존 색상", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 8)).pack(anchor="w")
+        self.swatch_old = tk.Label(f_old, bg=self.initial_color, height=2, relief="solid", bd=1, highlightthickness=1, highlightbackground="#3A3D4A", cursor="hand2")
+        self.swatch_old.pack(fill="x", pady=(2, 0))
+        self.swatch_old.bind("<Button-1>", lambda e: self.set_hex(self.initial_color))
+
+        # HEX 입력창
+        hex_row = tk.Frame(prev_card, bg="#191A1E")
+        hex_row.pack(fill="x", pady=(8, 0))
+        tk.Label(hex_row, text="HEX 색상 코드:", bg="#191A1E", fg="#FFFFFF", font=("Segoe UI", 9, "bold")).pack(side="left")
+        
+        self.ent_hex = tk.Entry(hex_row, bg="#131417", fg="#FFFFFF", insertbackground="#FF6B00",
+                                relief="flat", width=10, font=("Consolas", 10, "bold"), justify="center")
+        self.ent_hex.pack(side="left", padx=8)
+        self.ent_hex.insert(0, self.current_color)
+        def _on_hex_enter(e=None):
+            self.set_hex(self.ent_hex.get())
+        self.ent_hex.bind("<Return>", _on_hex_enter)
+        self.ent_hex.bind("<FocusOut>", _on_hex_enter)
+
+        # 2. 인기 게이밍 프리셋 24색 팔레트
+        pal_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=12, pady=10)
+        pal_card.pack(fill="x", padx=16, pady=(0, 10))
+        tk.Label(pal_card, text="인기 조준선 추천 컬러", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(0, 6))
+
+        presets = [
+            "#00FF00", "#00FFA3", "#00FFFF", "#00D4FF", "#0088FF", "#304FFE",
+            "#FFFF00", "#FFD700", "#FF9100", "#FF6B00", "#FF3D00", "#FF1744",
+            "#FF2B2B", "#FF4081", "#F50057", "#D500F9", "#7C4DFF", "#651FFF",
+            "#FFFFFF", "#CCCCCC", "#888888", "#444444", "#222222", "#000000"
+        ]
+        grid_f = tk.Frame(pal_card, bg="#191A1E")
+        grid_f.pack(fill="x")
+        cols = 8
+        for i, c in enumerate(presets):
+            b = tk.Label(grid_f, bg=c, width=3, height=1, cursor="hand2", relief="solid", bd=1, highlightthickness=1, highlightbackground="#2E303B")
+            b.grid(row=i // cols, column=i % cols, padx=2, pady=2)
+            b.bind("<Button-1>", lambda e, col=c: self.set_hex(col))
+
+        # 3. RGB 미세 조정 슬라이더
+        rgb_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=14, pady=8)
+        rgb_card.pack(fill="x", padx=16, pady=(0, 12))
+
+        self.r_val = tk.IntVar(value=self.r)
+        self.g_val = tk.IntVar(value=self.g)
+        self.b_val = tk.IntVar(value=self.b)
+
+        def _make_rgb_slider(label, var, color_accent):
+            row = tk.Frame(rgb_card, bg="#191A1E")
+            row.pack(fill="x", pady=2)
+            tk.Label(row, text=label, bg="#191A1E", fg=color_accent, font=("Segoe UI", 8, "bold"), width=3).pack(side="left")
+            s = ttk.Scale(row, from_=0, to=255, variable=var, command=lambda v: self._on_rgb_change())
+            s.pack(side="left", fill="x", expand=True, padx=8)
+            lbl_v = tk.Label(row, textvariable=var, bg="#191A1E", fg="#FFFFFF", font=("Consolas", 8), width=4, anchor="e")
+            lbl_v.pack(side="right")
+
+        _make_rgb_slider("R", self.r_val, "#FF5555")
+        _make_rgb_slider("G", self.g_val, "#55FF55")
+        _make_rgb_slider("B", self.b_val, "#5599FF")
+
+        # 4. 하단 버튼 영역 [확인] [취소]
+        bot_bar = tk.Frame(self, bg="#121316", padx=16)
+        bot_bar.pack(fill="x", side="bottom", pady=(0, 14))
+
+        btn_cancel = tk.Button(bot_bar, text="취소", bg="#25272F", fg="#8E929B", activebackground="#333642",
+                               activeforeground="#FFFFFF", relief="flat", bd=0, padx=16, pady=6,
+                               font=("Segoe UI", 9, "bold"), cursor="hand2", command=self.on_cancel)
+        btn_cancel.pack(side="right", padx=(8, 0))
+
+        btn_apply = tk.Button(bot_bar, text="✓ 확인 (적용)", bg="#FF6B00", fg="#FFFFFF", activebackground="#FF8533",
+                              activeforeground="#FFFFFF", relief="flat", bd=0, padx=20, pady=6,
+                              font=("Segoe UI", 9, "bold"), cursor="hand2", command=self.on_apply)
+        btn_apply.pack(side="right")
+
+        # 창 위치: 부모 창 중앙
+        self.update_idletasks()
+        try:
+            pw = parent.winfo_width()
+            ph = parent.winfo_height()
+            px = parent.winfo_rootx()
+            py = parent.winfo_rooty()
+            w = self.winfo_width()
+            h = self.winfo_height()
+            self.geometry(f"+{max(0, px + (pw - w) // 2)}+{max(0, py + (ph - h) // 2)}")
+        except Exception:
+            pass
+
+        self.bind("<Escape>", lambda e: self.on_cancel())
+        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
+
+    def _on_rgb_change(self):
+        r = int(self.r_val.get())
+        g = int(self.g_val.get())
+        b = int(self.b_val.get())
+        self.current_color = f"#{r:02X}{g:02X}{b:02X}"
+        self.swatch_new.configure(bg=self.current_color)
+        self.ent_hex.delete(0, tk.END)
+        self.ent_hex.insert(0, self.current_color)
+
+    def set_hex(self, hex_code):
+        hex_code = str(hex_code).strip()
+        if not hex_code.startswith("#"):
+            hex_code = "#" + hex_code
+        if len(hex_code) == 7:
+            try:
+                r = int(hex_code[1:3], 16)
+                g = int(hex_code[3:5], 16)
+                b = int(hex_code[5:7], 16)
+                self.r_val.set(r)
+                self.g_val.set(g)
+                self.b_val.set(b)
+                self.current_color = hex_code.upper()
+                self.swatch_new.configure(bg=self.current_color)
+                self.ent_hex.delete(0, tk.END)
+                self.ent_hex.insert(0, self.current_color)
+            except Exception:
+                pass
+
+    def on_apply(self):
+        if self.on_select:
+            self.on_select(self.current_color)
+        self.destroy()
+
+    def on_cancel(self):
+        self.destroy()
+
+
 # ---------------- 메인 Crosshair X UI ----------------
 class App:
     def __init__(self):
@@ -1058,6 +1487,10 @@ class App:
         self.sliders = {}
         self.toggles = {}
         self.keystate = {}
+        self.recording_action = None
+        self.keybind_buttons = {}
+        self.sidebar_key_badges = {}
+        self._pulse_tick = 0
         self.settings_visible = True
         self._syncing = False
         self._draw_job = None
@@ -1246,21 +1679,25 @@ class App:
         tk.Label(v_row, text=f"CrossPro {CURRENT_VERSION}",
                  bg="#131418", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold")).pack(side="left")
 
-        # 개별 행으로 단축키 분리 배치 (겹침 및 우측 잘림 원천 차단)
+        # 개별 행으로 단축키 분리 배치 (커스텀 단축키 실시간 동기화)
+        self.sidebar_key_badges = {}
         keys_data = [
-            ("F8", "표시 / 숨김"),
-            ("F9", "설정창 토글"),
-            ("Ctrl+F12", "프로그램 종료")
+            ("toggle_crosshair", "표시 / 숨김"),
+            ("toggle_settings", "설정창 토글"),
+            ("quit_app", "프로그램 종료")
         ]
-        for key_text, desc_text in keys_data:
+        keybinds = self.store.get("keybinds", DEFAULT_KEYBINDS)
+        for act_id, desc_text in keys_data:
             k_row = tk.Frame(bot_box, bg="#131418")
             k_row.pack(fill="x", pady=2)
-            badge = tk.Label(k_row, text=key_text, bg="#20222A", fg=CXTheme.ACCENT_ORANGE,
+            cur_key_name = keybinds.get(act_id, {}).get("name", act_id)
+            badge = tk.Label(k_row, text=cur_key_name, bg="#20222A", fg=CXTheme.ACCENT_ORANGE,
                              font=("Segoe UI", 7, "bold"), padx=4, pady=1, relief="flat")
             badge.pack(side="left")
             desc = tk.Label(k_row, text=desc_text, bg="#131418", fg=CXTheme.TEXT_MUTED,
                             font=("Segoe UI", 8))
             desc.pack(side="left", padx=(6, 0))
+            self.sidebar_key_badges[act_id] = badge
 
         btn_upd = tk.Button(bot_box, text="🔄 업데이트 확인", bg="#202228", fg=CXTheme.TEXT_MAIN,
                             activebackground=CXTheme.ACCENT_ORANGE, activeforeground="#FFFFFF",
@@ -1291,6 +1728,8 @@ class App:
         threading.Thread(target=_check, daemon=True).start()
 
     def switch_nav(self, key):
+        if getattr(self, "recording_action", None):
+            self.cancel_key_recording()
         self.current_nav = key
         for k, widgets in self.nav_btns.items():
             row, ic_lbl, tx_lbl = widgets
@@ -1444,6 +1883,14 @@ class App:
         self.add_slider(card_fire, "확산 픽셀 (Spread)", "fire_spread", 1.0, 15.0, 0.5)
         self.add_slider(card_fire, "복귀 속도 (Decay)", "fire_decay", 0.50, 0.95, 0.05)
 
+        # [우측 컬럼 4] 우클릭 조준 애니메이션 (ADS Aim Animation)
+        card_ads = self.create_card_with_toggle(right_col, "우클릭 조준 애니메이션 (ADS Aim Animation)", "ads_anim_on")
+        card_ads.pack(fill="x", pady=(0, 10))
+        tk.Label(card_ads, text="마우스 우클릭(조준) 시 크로스헤어가 실시간으로 축소 집중됩니다.",
+                 bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 8)).pack(anchor="w", padx=12, pady=(0, 4))
+        self.add_slider(card_ads, "조준 시 축소 폭 (Tighten)", "ads_tighten", 0.5, 6.0, 0.5)
+        self.add_slider(card_ads, "조준 전환 속도 (Speed)", "ads_speed", 0.10, 0.70, 0.05)
+
     # ---------- 십자선 프로 프리셋 뷰 ----------
     def build_presets_view(self):
         view = tk.Frame(self.content_area, bg=CXTheme.BG_MAIN)
@@ -1462,33 +1909,168 @@ class App:
         scrollbar.pack(side="right", fill="y")
         self.presets_canvas = canvas
 
-        hdr = self.create_card(scrollable_frame, "프로게이머 & 인기 십자선 라이브러리")
-        hdr.pack(fill="x", pady=(0, 12))
-        tk.Label(hdr, text="원클릭으로 세계 최고 프로 선수들의 조준점을 즉시 적용하세요.",
-                 bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 9)).pack(anchor="w", padx=12, pady=6)
+        self.preset_filter_cat = "ALL"
+        self._preset_thumbs = {}
 
-        grid = tk.Frame(scrollable_frame, bg=CXTheme.BG_MAIN)
-        grid.pack(fill="both", expand=True)
+        # 1. 상단 헤더 & 검색 & 필터 카드
+        hdr = tk.Frame(scrollable_frame, bg=CXTheme.BG_CARD, highlightthickness=1,
+                       highlightbackground=CXTheme.BG_CARD_BORDER, padx=14, pady=12)
+        hdr.pack(fill="x", padx=10, pady=(0, 12))
 
-        for i, (pname, pdata) in enumerate(PRO_PRESETS.items()):
+        t_row = tk.Frame(hdr, bg=CXTheme.BG_CARD)
+        t_row.pack(fill="x")
+        tk.Label(t_row, text=f"🏆 프로게이머 & 인기 십자선 라이브러리 ({len(PRO_PRESETS)}종)",
+                 bg=CXTheme.BG_CARD, fg="#FFFFFF", font=("Segoe UI", 12, "bold")).pack(side="left")
+        self.presets_count_lbl = tk.Label(t_row, text=f"총 {len(PRO_PRESETS)}개의 프리셋",
+                                          bg=CXTheme.BG_CARD, fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold"))
+        self.presets_count_lbl.pack(side="right")
+
+        # 검색창
+        s_box = tk.Frame(hdr, bg="#131417", highlightthickness=1, highlightbackground="#2E323E", padx=8, pady=5)
+        s_box.pack(fill="x", pady=(10, 8))
+
+        tk.Label(s_box, text="🔍", bg="#131417", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 11)).pack(side="left", padx=(4, 6))
+        self.preset_search_var = tk.StringVar()
+        self.preset_search_ent = tk.Entry(
+            s_box, textvariable=self.preset_search_var, bg="#131417", fg="#FFFFFF",
+            insertbackground=CXTheme.ACCENT_ORANGE, relief="flat", font=("Segoe UI", 9)
+        )
+        self.preset_search_ent.pack(side="left", fill="x", expand=True)
+        self.preset_search_ent.bind("<KeyRelease>", lambda e: self.filter_presets())
+
+        # 카테고리 필터 버튼들
+        cat_box = tk.Frame(hdr, bg=CXTheme.BG_CARD)
+        cat_box.pack(fill="x", pady=(4, 0))
+
+        self.preset_cat_btns = {}
+        categories = [
+            ("ALL", "전체"),
+            ("VALORANT PRO", "🏆 발로란트"),
+            ("CS2 PRO", "💥 CS2"),
+            ("ONE-TAP DOT", "🎯 원탭 도트"),
+            ("TACTICAL / FANCY", "✨ 특수/팬시")
+        ]
+        for cat_id, cat_name in categories:
+            btn_c = tk.Button(
+                cat_box, text=cat_name, bg=CXTheme.ACCENT_ORANGE if cat_id == "ALL" else "#20222A",
+                fg="#FFFFFF" if cat_id == "ALL" else "#8E929B", relief="flat", bd=0, padx=10, pady=3,
+                font=("Segoe UI", 8, "bold"), cursor="hand2",
+                command=lambda c=cat_id: self.select_preset_cat(c)
+            )
+            btn_c.pack(side="left", padx=(0, 6))
+            self.preset_cat_btns[cat_id] = btn_c
+
+        # 2. 그리드 영역 컨테이너
+        self.presets_grid = tk.Frame(scrollable_frame, bg=CXTheme.BG_MAIN, padx=4)
+        self.presets_grid.pack(fill="both", expand=True)
+
+        self.filter_presets()
+
+    def select_preset_cat(self, cat_id):
+        self.preset_filter_cat = cat_id
+        if hasattr(self, "preset_cat_btns"):
+            for cid, btn in self.preset_cat_btns.items():
+                if cid == cat_id:
+                    btn.configure(bg=CXTheme.ACCENT_ORANGE, fg="#FFFFFF")
+                else:
+                    btn.configure(bg="#20222A", fg="#8E929B")
+        self.filter_presets()
+
+    def get_preset_thumbnail(self, pname, pdata):
+        if not hasattr(self, "_preset_thumbs"):
+            self._preset_thumbs = {}
+        if pname in self._preset_thumbs:
+            return self._preset_thumbs[pname]
+
+        bg = Image.new("RGBA", (48, 48), (18, 19, 22, 255))
+        d = ImageDraw.Draw(bg)
+        for y in range(0, 48, 8):
+            for x in range(0, 48, 8):
+                if ((x // 8) + (y // 8)) % 2 == 1:
+                    d.rectangle([x, y, x + 7, y + 7], fill=(26, 28, 33, 255))
+
+        rendered = self.overlay.render(pdata, CANVAS / 2.0, CANVAS / 2.0)
+        cx = CANVAS / 2.0
+        cy = CANVAS / 2.0
+        cropped = rendered.crop((int(cx - 24), int(cy - 24), int(cx + 24), int(cy + 24)))
+        bg.alpha_composite(cropped)
+
+        photo = ImageTk.PhotoImage(bg)
+        self._preset_thumbs[pname] = photo
+        return photo
+
+    def filter_presets(self):
+        query = self.preset_search_var.get().strip().lower() if hasattr(self, "preset_search_var") else ""
+        cat = getattr(self, "preset_filter_cat", "ALL")
+
+        for w in self.presets_grid.winfo_children():
+            w.destroy()
+
+        matching = []
+        for pname, pdata in PRO_PRESETS.items():
+            p_cat = pdata.get("category", "")
+            if cat != "ALL" and p_cat != cat:
+                continue
+            if query:
+                p_desc = pdata.get("desc", "")
+                if query not in pname.lower() and query not in p_desc.lower() and query not in p_cat.lower():
+                    continue
+            matching.append((pname, pdata))
+
+        if hasattr(self, "presets_count_lbl"):
+            self.presets_count_lbl.configure(text=f"검색 결과: {len(matching)}개")
+
+        if not matching:
+            empty_box = tk.Frame(self.presets_grid, bg=CXTheme.BG_MAIN, pady=40)
+            empty_box.pack(fill="both", expand=True)
+            tk.Label(empty_box, text="🔍 일치하는 십자선 프리셋을 찾을 수 없습니다.",
+                     bg=CXTheme.BG_MAIN, fg="#8E929B", font=("Segoe UI", 11)).pack()
+            return
+
+        grid_f = tk.Frame(self.presets_grid, bg=CXTheme.BG_MAIN)
+        grid_f.pack(fill="both", expand=True)
+        grid_f.columnconfigure(0, weight=1)
+        grid_f.columnconfigure(1, weight=1)
+
+        for i, (pname, pdata) in enumerate(matching):
             row = i // 2
             col = i % 2
-            card = tk.Frame(grid, bg=CXTheme.BG_CARD, highlightthickness=1, highlightbackground=CXTheme.BG_CARD_BORDER, padx=12, pady=10)
-            card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
-            grid.columnconfigure(col, weight=1)
+            card = tk.Frame(grid_f, bg=CXTheme.BG_CARD, highlightthickness=1,
+                            highlightbackground=CXTheme.BG_CARD_BORDER, padx=10, pady=10)
+            card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
-            tk.Label(card, text=pname, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 10, "bold")).pack(anchor="w")
-            tk.Label(card, text="공식 대회 검증 완료 크로스헤어", bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MUTED, font=("Segoe UI", 8)).pack(anchor="w", pady=(0, 6))
+            thumb_cv = tk.Canvas(card, width=48, height=48, bg="#121316", highlightthickness=1, highlightbackground="#25272F")
+            thumb_cv.pack(side="left", padx=(0, 10))
 
-            btn = tk.Button(card, text="적용하기", bg=CXTheme.ACCENT_ORANGE, fg="#FFFFFF", relief="flat", bd=0,
-                            padx=10, pady=4, font=("Segoe UI", 9, "bold"), cursor="hand2",
-                            command=lambda pn=pname: self.apply_preset(pn))
-            btn.pack(anchor="e")
+            thumb_photo = self.get_preset_thumbnail(pname, pdata)
+            thumb_cv.create_image(24, 24, image=thumb_photo)
+            thumb_cv.image = thumb_photo
+
+            mid_f = tk.Frame(card, bg=CXTheme.BG_CARD)
+            mid_f.pack(side="left", fill="both", expand=True)
+
+            cat_tag = pdata.get("category", "PRESET")
+            tk.Label(mid_f, text=f"[{cat_tag}]", bg=CXTheme.BG_CARD, fg=CXTheme.ACCENT_ORANGE,
+                     font=("Segoe UI", 7, "bold")).pack(anchor="w")
+            tk.Label(mid_f, text=pname, bg=CXTheme.BG_CARD, fg="#FFFFFF",
+                     font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            tk.Label(mid_f, text=pdata.get("desc", "공식 대회 검증 완료 조준선"), bg=CXTheme.BG_CARD,
+                     fg="#8E929B", font=("Segoe UI", 8)).pack(anchor="w", pady=(1, 0))
+
+            btn_apply = tk.Button(
+                card, text="적용하기", bg="#25272F", fg=CXTheme.ACCENT_ORANGE,
+                activebackground=CXTheme.ACCENT_ORANGE, activeforeground="#FFFFFF",
+                relief="flat", bd=0, padx=10, pady=5, font=("Segoe UI", 8, "bold"),
+                cursor="hand2", command=lambda pn=pname: self.apply_preset(pn)
+            )
+            btn_apply.pack(side="right")
 
     def apply_preset(self, name):
         if name in PRO_PRESETS:
-            self.store["profiles"][name] = dict(PRO_PRESETS[name])
+            pdata = dict(PRO_PRESETS[name])
+            self.store["profiles"][name] = pdata
             self.load_profile(name)
+            play_sound(1200, 70)
             self.switch_nav("designer")
 
     # ---------- 픽셀 브러시 스튜디오 & 이미지 오버레이 뷰 ----------
@@ -1944,9 +2526,8 @@ class App:
         self.select_brush_tool("brush")
 
     def pick_brush_color(self):
-        res = colorchooser.askcolor(self.pixel_brush_hex, parent=self.root, title="CROSS PRO - 붓 색상 직접 지정")
-        if res and res[1]:
-            self.set_brush_color(res[1].upper())
+        ModernColorPicker(self.root, self.pixel_brush_hex, title="CROSS PRO - 붓 색상 직접 지정",
+                          on_select=lambda c: self.set_brush_color(c))
 
     def recolor_pixel_canvas(self):
         """현재 캔버스에 그려진 모든 불투명 픽셀을 현재 붓 색상으로 일괄 변경"""
@@ -2316,21 +2897,102 @@ class App:
         view = tk.Frame(self.content_area, bg=CXTheme.BG_MAIN)
         self.views["keybinds"] = view
 
-        card = self.create_card(view, "전역 단축키 (Global Keybinds)")
-        card.pack(fill="x")
+        # 메인 카드 컨테이너
+        card = self.create_card(view, "전역 단축키 커스텀 설정 (Global Keybinds)")
+        card.pack(fill="x", padx=16, pady=12)
 
-        keys_info = [
-            ("F8", "크로스헤어 표시 / 숨기기 토글"),
-            ("F9", "설정창 열기 / 닫기 (트레이 최소화)"),
-            ("F10", "다음 크로스헤어 프로필로 전환"),
-            ("Ctrl + F12", "프로그램 완전 종료"),
-            ("Shift + 방향키", "위치 탭에서 0.1px 단위 미세 이동")
+        # 1. 상단 상태 및 안내 배너 (효과 및 실시간 안내)
+        self.keybind_banner = tk.Label(
+            card,
+            text="💡 변경할 항목의 단축키 버튼을 클릭한 후, 원하는 키를 누르면 즉시 저장됩니다. (취소: ESC)",
+            bg="#16181F", fg="#8E929B", font=("Segoe UI", 9),
+            padx=12, pady=10, relief="solid", bd=1,
+            highlightthickness=1, highlightbackground="#25272F",
+            anchor="w", justify="left"
+        )
+        self.keybind_banner.pack(fill="x", padx=12, pady=(4, 12))
+
+        self.keybind_buttons = {}
+
+        # 2. 커스텀 가능한 4대 핵심 단축키 항목
+        actions = [
+            ("toggle_crosshair", "👁️ 조준선 켜기 / 끄기 토글", "인게임 플레이 중 화면 조준선 오버레이를 즉시 표시하거나 숨깁니다."),
+            ("toggle_settings", "⚙️ 설정창 열기 / 닫기 (토글)", "CROSS PRO 설정창을 화면에 띄우거나 작업표시줄 트레이로 숨깁니다."),
+            ("next_profile", "🔄 다음 프로필로 즉시 전환", "저장된 크로스헤어 프리셋(TenZ, Demon1 등)을 게임 중 실시간으로 순환 전환합니다."),
+            ("quit_app", "❌ 프로그램 완전 종료", "백그라운드 프로세스와 트레이를 포함한 모든 프로세스를 즉시 종료합니다.")
         ]
-        for k, desc in keys_info:
-            r = tk.Frame(card, bg=CXTheme.BG_CARD)
-            r.pack(fill="x", padx=12, pady=6)
-            tk.Label(r, text=k, bg="#2A2C34", fg=CXTheme.ACCENT_ORANGE, font=("Segoe UI", 9, "bold"), width=12, padx=4, pady=2).pack(side="left")
-            tk.Label(r, text=desc, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 9)).pack(side="left", padx=10)
+
+        keybinds = self.store.get("keybinds", DEFAULT_KEYBINDS)
+
+        for act_id, title, desc in actions:
+            bind_info = keybinds.get(act_id, DEFAULT_KEYBINDS.get(act_id, {}))
+            cur_key_name = bind_info.get("name", "미지정")
+
+            row_card = tk.Frame(card, bg="#181A20", highlightthickness=1,
+                                highlightbackground="#242630", padx=12, pady=10)
+            row_card.pack(fill="x", padx=12, pady=4)
+
+            # 좌측: 액션 명칭 및 상세 설명
+            left_f = tk.Frame(row_card, bg="#181A20")
+            left_f.pack(side="left", fill="both", expand=True)
+
+            tk.Label(left_f, text=title, bg="#181A20", fg="#FFFFFF",
+                     font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            tk.Label(left_f, text=desc, bg="#181A20", fg="#8E929B",
+                     font=("Segoe UI", 8)).pack(anchor="w", pady=(2, 0))
+
+            # 우측: 키 버튼 & 개별 초기화 버튼
+            right_f = tk.Frame(row_card, bg="#181A20")
+            right_f.pack(side="right")
+
+            # 초기화 버튼
+            btn_reset = tk.Button(
+                right_f, text="↺ 초기화", bg="#202228", fg="#8E929B",
+                activebackground="#2A2C34", activeforeground="#FFFFFF",
+                relief="flat", bd=0, padx=8, pady=4, font=("Segoe UI", 8),
+                cursor="hand2", command=lambda a=act_id: self.reset_keybind(a)
+            )
+            btn_reset.pack(side="right", padx=(8, 0))
+
+            # 키 바인드 버튼 (클릭 시 키 녹음 시작)
+            btn_key = tk.Button(
+                right_f, text=f"[  {cur_key_name}  ]",
+                bg="#25272F", fg=CXTheme.ACCENT_ORANGE,
+                activebackground=CXTheme.ACCENT_ORANGE, activeforeground="#FFFFFF",
+                relief="flat", bd=0, padx=14, pady=4,
+                font=("Consolas", 10, "bold"), cursor="hand2",
+                highlightthickness=1, highlightbackground="#3A3D4A",
+                command=lambda a=act_id: self.start_key_recording(a)
+            )
+            btn_key.pack(side="right")
+            self.keybind_buttons[act_id] = btn_key
+
+        # 3. 고정 단축키 안내 항목 (미세 이동)
+        row_fixed = tk.Frame(card, bg="#15161A", highlightthickness=1,
+                             highlightbackground="#202228", padx=12, pady=10)
+        row_fixed.pack(fill="x", padx=12, pady=4)
+
+        f_left = tk.Frame(row_fixed, bg="#15161A")
+        f_left.pack(side="left", fill="both", expand=True)
+        tk.Label(f_left, text="🎯 0.1px 단위 미세 위치 이동 (고정)", bg="#15161A", fg="#A0A5B5",
+                 font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(f_left, text="위치 탭에서 Shift 키를 누른 상태로 키보드 방향키를 누르면 초정밀 이동합니다.",
+                 bg="#15161A", fg="#606470", font=("Segoe UI", 8)).pack(anchor="w", pady=(2, 0))
+
+        tk.Label(row_fixed, text="[ Shift + 방향키 ]", bg="#1C1E24", fg="#6A6F7E",
+                 font=("Consolas", 9, "bold"), padx=12, pady=4).pack(side="right")
+
+        # 4. 하단 모든 단축키 기본값 초기화 버튼
+        bot_bar = tk.Frame(card, bg=CXTheme.BG_CARD, pady=10)
+        bot_bar.pack(fill="x", padx=12)
+
+        btn_reset_all = tk.Button(
+            bot_bar, text="↺ 모든 단축키 기본값으로 복원",
+            bg="#202228", fg="#FF6B00", activebackground="#FF6B00", activeforeground="#FFFFFF",
+            relief="flat", bd=0, padx=16, pady=6, font=("Segoe UI", 9, "bold"),
+            cursor="hand2", command=self.reset_all_keybinds
+        )
+        btn_reset_all.pack(side="right")
 
     def create_card(self, parent, title):
         card = tk.Frame(parent, bg=CXTheme.BG_CARD, highlightthickness=1, highlightbackground=CXTheme.BG_CARD_BORDER, padx=4, pady=6)
@@ -2364,45 +3026,21 @@ class App:
         r_box = tk.Frame(f, bg=CXTheme.BG_CARD)
         r_box.pack(side="right")
 
-        cur_col = self.cfg.get(key, "#00FF00")
-
-        # 1. 🎨 직접 지정 버튼 (한눈에 알아볼 수 있는 버튼)
+        # 1. 🎨 직접 지정 버튼 (클릭 시 전용 다크모드 색상 선택기 팝업)
         btn_pick = tk.Button(
             r_box, text="🎨 직접 지정...", bg="#25272F", fg=CXTheme.TEXT_MAIN,
             activebackground=CXTheme.ACCENT_ORANGE, activeforeground="#FFFFFF",
-            relief="flat", bd=0, padx=6, pady=2, font=("Segoe UI", 8, "bold"),
+            relief="flat", bd=0, padx=8, pady=3, font=("Segoe UI", 8, "bold"),
             cursor="hand2", command=lambda: self.pick_color(key)
         )
-        btn_pick.pack(side="right", padx=(6, 0))
+        btn_pick.pack(side="right", padx=(8, 0))
 
-        # 2. 색상 견본 (클릭 시에도 팔레트 오픈)
-        sw = tk.Label(r_box, width=3, height=1, bg=cur_col, relief="solid", bd=1,
-                      highlightthickness=1, highlightbackground="#3A3D4A", cursor="hand2")
-        sw.pack(side="right", padx=(4, 2))
-        sw.bind("<Button-1>", lambda e: self.pick_color(key))
-
-        # 3. HEX 코드 직접 입력창 (예: #00FF00)
-        ent = tk.Entry(r_box, bg=CXTheme.BG_INPUT, fg=CXTheme.TEXT_MAIN,
-                       insertbackground=CXTheme.ACCENT_ORANGE, relief="flat",
-                       width=8, font=("Consolas", 9), justify="center")
-        ent.pack(side="right", padx=3)
-        ent.insert(0, cur_col)
-        
-        def _on_hex_commit(e=None):
-            self.set_color(key, ent.get())
-        ent.bind("<Return>", _on_hex_commit)
-        ent.bind("<FocusOut>", _on_hex_commit)
-
-        # 4. 퀵 팔레트 색상 버튼들
+        # 2. 퀵 팔레트 색상 버튼들 (하얀색 박스 및 HEX 입력창 제거 후 오직 퀵 색상과 직접 지정 버튼만 유지)
         quick_colors = ["#00FF00", "#00FFA3", "#00E5FF", "#FFFF00", "#FF2B2B", "#FFFFFF", "#000000"]
         for c in reversed(quick_colors):
             b = tk.Label(r_box, bg=c, width=2, height=1, cursor="hand2", relief="flat")
             b.pack(side="right", padx=1)
             b.bind("<Button-1>", lambda e, c=c: self.set_color(key, c))
-
-        if not hasattr(self, "color_widgets"):
-            self.color_widgets = {}
-        self.color_widgets[key] = (sw, ent)
 
     def set_color(self, key, hex_code):
         hex_code = str(hex_code).strip()
@@ -2435,17 +3073,11 @@ class App:
 
         self.set(key, hex_code)
 
-        if hasattr(self, "color_widgets") and key in self.color_widgets:
-            sw, ent = self.color_widgets[key]
-            sw.configure(bg=hex_code)
-            ent.delete(0, tk.END)
-            ent.insert(0, hex_code)
-
     def pick_color(self, key):
         init_col = self.cfg.get(key, "#00FF00")
-        res = colorchooser.askcolor(init_col, parent=self.root, title=f"CROSS PRO - 색상 직접 지정")
-        if res and res[1]:
-            self.set_color(key, res[1].upper())
+        label_map = {"dot_color": "도트 색상", "line_color": "선 색상", "outline_color": "윤곽선 색상"}
+        title_text = f"CROSS PRO - {label_map.get(key, '색상')} 직접 지정"
+        ModernColorPicker(self.root, init_col, title=title_text, on_select=lambda c: self.set_color(key, c))
 
     def theme_btn(self, parent, text, cmd):
         return tk.Button(parent, text=text, bg="#25272F", fg=CXTheme.TEXT_MAIN, activebackground=CXTheme.ACCENT_ORANGE,
@@ -2499,7 +3131,8 @@ class App:
             return
         cx = CANVAS / 2.0
         cy = CANVAS / 2.0
-        rendered = self.overlay.render(self.cfg, cx, cy)
+        total_dynamic_offset = getattr(self.overlay, "current_fire_spread", 0.0) - getattr(self.overlay, "current_ads_tighten", 0.0)
+        rendered = self.overlay.render(self.cfg, cx, cy, total_dynamic_offset)
         
         # 80x80 크롭 (캔버스 정중앙 기준)
         cropped = rendered.crop((int(cx - 40), int(cy - 40), int(cx + 40), int(cy + 40)))
@@ -2544,13 +3177,6 @@ class App:
             for k, b in self.dir_btns.items():
                 on = self.cfg.get(k, True)
                 b.configure(bg=CXTheme.ACCENT_ORANGE if on else "#25272F")
-            # 색상 위젯 동기화
-            if hasattr(self, "color_widgets"):
-                for k, (sw, ent) in self.color_widgets.items():
-                    c_val = self.cfg.get(k, "#00FF00")
-                    sw.configure(bg=c_val)
-                    ent.delete(0, tk.END)
-                    ent.insert(0, c_val)
         finally:
             self._syncing = False
         self.redraw()
@@ -2616,23 +3242,70 @@ class App:
         if "offset_y" in self.sliders:
             self.sliders["offset_y"].set_value(0.0)
 
-    # ---------- 발사 애니메이션 루프 (마우스 좌클릭 감지) ----------
-    def fire_anim_loop(self):
-        if self.cfg.get("fire_anim_on", False):
-            # 마우스 좌클릭 상태 감지
-            is_lbutton_down = bool(user32.GetAsyncKeyState(VK["LBUTTON"]) & 0x8000)
-            if is_lbutton_down:
-                spread = float(self.cfg.get("fire_spread", 4.0))
-                self.overlay.current_fire_spread = spread
-                self.overlay.draw(self.cfg)
-            elif self.overlay.current_fire_spread > 0.05:
-                decay = float(self.cfg.get("fire_decay", 0.85))
-                self.overlay.current_fire_spread *= decay
-                if self.overlay.current_fire_spread <= 0.05:
-                    self.overlay.current_fire_spread = 0.0
-                self.overlay.draw(self.cfg)
+    # ---------- 발사 반동 & 우클릭 조준 애니메이션 물리 루프 (60 FPS) ----------
+    def anim_loop(self):
+        fire_on = self.cfg.get("fire_anim_on", False)
+        ads_on = self.cfg.get("ads_anim_on", False)
 
-        self.root.after(16, self.fire_anim_loop)
+        needs_redraw = False
+
+        # 1. 발사 애니메이션 (Left Click Firing)
+        if fire_on:
+            is_lbutton = bool(user32.GetAsyncKeyState(0x01) & 0x8000)
+            target_spread = float(self.cfg.get("fire_spread", 4.0)) if is_lbutton else 0.0
+
+            if is_lbutton:
+                if not getattr(self, "_last_lbutton_down", False):
+                    self.overlay.current_fire_spread = target_spread
+                    needs_redraw = True
+                else:
+                    if abs(self.overlay.current_fire_spread - target_spread) > 0.05:
+                        self.overlay.current_fire_spread = target_spread
+                        needs_redraw = True
+                self._last_lbutton_down = True
+            else:
+                self._last_lbutton_down = False
+                if self.overlay.current_fire_spread > 0.05:
+                    decay = float(self.cfg.get("fire_decay", 0.85))
+                    self.overlay.current_fire_spread *= decay
+                    if self.overlay.current_fire_spread <= 0.05:
+                        self.overlay.current_fire_spread = 0.0
+                    needs_redraw = True
+        else:
+            if getattr(self.overlay, "current_fire_spread", 0.0) != 0.0:
+                self.overlay.current_fire_spread = 0.0
+                needs_redraw = True
+
+        # 2. 우클릭 조준 애니메이션 (Right Click ADS Aiming)
+        if ads_on:
+            is_rbutton = bool(user32.GetAsyncKeyState(0x02) & 0x8000)
+            target_tighten = float(self.cfg.get("ads_tighten", 2.5)) if is_rbutton else 0.0
+            cur_tighten = getattr(self.overlay, "current_ads_tighten", 0.0)
+            speed = float(self.cfg.get("ads_speed", 0.35))
+            speed = max(0.05, min(0.9, speed))
+
+            if abs(cur_tighten - target_tighten) > 0.05:
+                cur_tighten += (target_tighten - cur_tighten) * speed
+                self.overlay.current_ads_tighten = cur_tighten
+                needs_redraw = True
+            elif cur_tighten != target_tighten:
+                self.overlay.current_ads_tighten = target_tighten
+                needs_redraw = True
+        else:
+            if getattr(self.overlay, "current_ads_tighten", 0.0) != 0.0:
+                self.overlay.current_ads_tighten = 0.0
+                needs_redraw = True
+
+        # 3. 화면 및 미니 프리뷰 재렌더링
+        if needs_redraw:
+            self.overlay.draw(self.cfg)
+            if self.settings_visible:
+                self.update_mini_preview()
+
+        self.root.after(16, self.anim_loop)
+
+    def fire_anim_loop(self):
+        return self.anim_loop()
 
     def hide_settings(self):
         self.root.withdraw()
@@ -2666,22 +3339,370 @@ class App:
         self.keystate[name] = down
         return down and not was
 
-    def poll_keys(self):
-        ctrl = bool(user32.GetAsyncKeyState(VK["CTRL"]) & 0x8000)
-        # 게임 내 좌클릭/우클릭 시 즉시 최상위 재진입
-        if (user32.GetAsyncKeyState(VK["LBUTTON"]) & 0x8000) or (user32.GetAsyncKeyState(0x02) & 0x8000):
-            self.overlay.keep_on_top()
+    def is_action_triggered(self, action_id):
+        keybinds = self.store.get("keybinds", DEFAULT_KEYBINDS)
+        bind = keybinds.get(action_id)
+        if not bind:
+            return False
+        vk = bind.get("vk")
+        if not vk:
+            return False
 
-        if self.pressed("F8"):
+        is_down = bool(user32.GetAsyncKeyState(vk) & 0x8000)
+        was_down = self.keystate.get(f"act_{action_id}", False)
+        self.keystate[f"act_{action_id}"] = is_down
+
+        if is_down and not was_down:
+            ctrl_down = bool(user32.GetAsyncKeyState(0x11) & 0x8000)
+            shift_down = bool(user32.GetAsyncKeyState(0x10) & 0x8000)
+            alt_down = bool(user32.GetAsyncKeyState(0x12) & 0x8000)
+            if (ctrl_down == bind.get("ctrl", False) and
+                shift_down == bind.get("shift", False) and
+                alt_down == bind.get("alt", False)):
+                return True
+        return False
+
+    def poll_keys(self):
+        # 1. 단축키 녹음(커스터마이징) 대기 중일 때 처리
+        if getattr(self, "recording_action", None):
+            self.poll_key_recording()
+            self.root.after(30, self.poll_keys)
+            return
+
+        # 2. 게임 플레이 중(설정창이 닫혀있을 때)에만 마우스 클릭 시 최상위 재진입
+        if not self.settings_visible and self.overlay.visible:
+            if (user32.GetAsyncKeyState(VK["LBUTTON"]) & 0x8000) or (user32.GetAsyncKeyState(0x02) & 0x8000):
+                self.overlay.keep_on_top()
+
+        # 3. 전역 단축키 동적 감지 (커스텀 키바인드 연동)
+        if self.is_action_triggered("toggle_crosshair"):
             self.toggle_crosshair()
-        if self.pressed("F9"):
+        if self.is_action_triggered("toggle_settings"):
             self.toggle_settings()
-        if self.pressed("F10"):
+        if self.is_action_triggered("next_profile"):
             self.next_profile()
-        if self.pressed("F12") and ctrl:
+        if self.is_action_triggered("quit_app"):
             self.quit()
             return
+
         self.root.after(30, self.poll_keys)
+
+    def start_key_recording(self, action_id):
+        if getattr(self, "recording_action", None):
+            self.cancel_key_recording()
+
+        self.recording_action = action_id
+        self._pulse_tick = 0
+        btn = self.keybind_buttons.get(action_id)
+        if btn:
+            btn.configure(
+                text="⌨️ 누를 키 입력...",
+                bg="#FF6B00",
+                fg="#FFFFFF",
+                relief="solid",
+                bd=1,
+                highlightthickness=2,
+                highlightbackground="#FFFFFF"
+            )
+
+        if hasattr(self, "keybind_banner"):
+            act_info = self.store.get("keybinds", {}).get(action_id, {})
+            title = act_info.get("title", action_id)
+            self.keybind_banner.configure(
+                text=f"🎯 [{title}] 원하는 키를 누르세요! (조합키: Ctrl, Shift, Alt 지원 / 취소: ESC)",
+                bg="#2E1C0C",
+                fg="#FFAE66",
+                highlightbackground="#FF6B00"
+            )
+
+    def poll_key_recording(self):
+        act = getattr(self, "recording_action", None)
+        if not act:
+            return
+
+        # 펄스 애니메이션 (빛나는 주황색 효과)
+        self._pulse_tick = getattr(self, "_pulse_tick", 0) + 1
+        btn = self.keybind_buttons.get(act)
+        if btn:
+            if (self._pulse_tick // 5) % 2 == 0:
+                btn.configure(bg="#FF6B00", fg="#FFFFFF")
+            else:
+                btn.configure(bg="#FF8533", fg="#FFFFFF")
+
+        # 1. ESC 키 감지 (단독 누름 시 취소)
+        esc_down = bool(user32.GetAsyncKeyState(0x1B) & 0x8000)
+        ctrl_down = bool(user32.GetAsyncKeyState(0x11) & 0x8000)
+        shift_down = bool(user32.GetAsyncKeyState(0x10) & 0x8000)
+        alt_down = bool(user32.GetAsyncKeyState(0x12) & 0x8000)
+
+        if esc_down and not (ctrl_down or shift_down or alt_down):
+            self.cancel_key_recording()
+            return
+
+        # 2. 마우스 좌/우 클릭(0x01, 0x02), ESC(0x1B) 및 수정자 키 단독 누름은 완료 키로 등록 불가
+        # 게이밍 마우스 버튼(Mouse 3: 0x04, Mouse 4: 0x05, Mouse 5: 0x06)은 지원
+        IGNORE_VKS = {0x01, 0x02, 0x10, 0x11, 0x12, 0x1B, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5}
+
+        # 3. 키보드/마우스 키 전체 스캔
+        for vk in range(3, 256):
+            if vk in IGNORE_VKS:
+                continue
+            if user32.GetAsyncKeyState(vk) & 0x8000:
+                self.finish_key_recording(vk, ctrl_down, shift_down, alt_down)
+                return
+
+    def finish_key_recording(self, vk, ctrl, shift, alt):
+        act = self.recording_action
+        self.recording_action = None
+
+        key_name = VK_NAMES.get(vk, f"Key_{vk}")
+        parts = []
+        if ctrl: parts.append("Ctrl")
+        if alt: parts.append("Alt")
+        if shift: parts.append("Shift")
+        parts.append(key_name)
+        combo_name = " + ".join(parts)
+
+        if "keybinds" not in self.store:
+            self.store["keybinds"] = {}
+        if act not in self.store["keybinds"]:
+            self.store["keybinds"][act] = dict(DEFAULT_KEYBINDS.get(act, {}))
+
+        # 중복 키 확인 및 스왑 처리
+        swap_msg = ""
+        for other_act, other_info in self.store["keybinds"].items():
+            if other_act != act and other_info.get("vk") == vk and \
+               other_info.get("ctrl") == ctrl and other_info.get("shift") == shift and other_info.get("alt") == alt:
+                prev_info = dict(self.store["keybinds"][act])
+                self.store["keybinds"][other_act]["vk"] = prev_info.get("vk")
+                self.store["keybinds"][other_act]["ctrl"] = prev_info.get("ctrl")
+                self.store["keybinds"][other_act]["shift"] = prev_info.get("shift")
+                self.store["keybinds"][other_act]["alt"] = prev_info.get("alt")
+                self.store["keybinds"][other_act]["name"] = prev_info.get("name")
+                other_btn = self.keybind_buttons.get(other_act)
+                if other_btn:
+                    other_btn.configure(text=f"[  {prev_info.get('name', '미지정')}  ]")
+                swap_msg = " (기존 중복 기능과 단축키 맞교환됨)"
+                break
+
+        self.store["keybinds"][act]["vk"] = vk
+        self.store["keybinds"][act]["ctrl"] = ctrl
+        self.store["keybinds"][act]["shift"] = shift
+        self.store["keybinds"][act]["alt"] = alt
+        self.store["keybinds"][act]["name"] = combo_name
+        save_store(self.store)
+
+        # 효과 1: 오디오 비프음 피드백
+        play_sound(1200, 70)
+
+        # 효과 2: 네온 그린 플래시 애니메이션
+        btn = self.keybind_buttons.get(act)
+        if btn:
+            btn.configure(
+                text=f"[  {combo_name}  ]",
+                bg="#00E676",
+                fg="#000000",
+                relief="flat",
+                bd=0,
+                highlightthickness=1,
+                highlightbackground="#00FFA3"
+            )
+            def _settle(b=btn):
+                try:
+                    b.configure(
+                        bg="#25272F",
+                        fg=CXTheme.ACCENT_ORANGE,
+                        highlightthickness=1,
+                        highlightbackground="#3A3D4A"
+                    )
+                except Exception:
+                    pass
+            self.root.after(350, _settle)
+
+        # 효과 3: 상단 배너 피드백
+        if hasattr(self, "keybind_banner"):
+            act_title = self.store["keybinds"][act].get("title", act)
+            self.keybind_banner.configure(
+                text=f"✨ [설정 완료] '{act_title}' ➔ [ {combo_name} ]{swap_msg}",
+                bg="#0E2818",
+                fg="#00E676",
+                highlightbackground="#00FFA3"
+            )
+            def _reset_banner():
+                try:
+                    if hasattr(self, "keybind_banner") and not getattr(self, "recording_action", None):
+                        self.keybind_banner.configure(
+                            text="💡 변경할 항목의 단축키 버튼을 클릭한 후, 원하는 키를 누르면 즉시 저장됩니다. (취소: ESC)",
+                            bg="#16181F",
+                            fg="#8E929B",
+                            highlightbackground="#25272F"
+                        )
+                except Exception:
+                    pass
+            self.root.after(2500, _reset_banner)
+
+        self.update_sidebar_key_badges()
+
+    def cancel_key_recording(self):
+        act = getattr(self, "recording_action", None)
+        self.recording_action = None
+        if act and act in self.keybind_buttons:
+            bind = self.store.get("keybinds", {}).get(act, DEFAULT_KEYBINDS.get(act, {}))
+            combo_name = bind.get("name", "미지정")
+            btn = self.keybind_buttons[act]
+            btn.configure(
+                text=f"[  {combo_name}  ]",
+                bg="#25272F",
+                fg=CXTheme.ACCENT_ORANGE,
+                relief="flat",
+                bd=0,
+                highlightthickness=1,
+                highlightbackground="#3A3D4A"
+            )
+
+        if hasattr(self, "keybind_banner"):
+            self.keybind_banner.configure(
+                text="ℹ️ 단축키 입력이 취소되었습니다.",
+                bg="#1F1B16",
+                fg="#FFAE66",
+                highlightbackground="#3A3D4A"
+            )
+            def _reset_banner():
+                try:
+                    if hasattr(self, "keybind_banner") and not getattr(self, "recording_action", None):
+                        self.keybind_banner.configure(
+                            text="💡 변경할 항목의 단축키 버튼을 클릭한 후, 원하는 키를 누르면 즉시 저장됩니다. (취소: ESC)",
+                            bg="#16181F",
+                            fg="#8E929B",
+                            highlightbackground="#25272F"
+                        )
+                except Exception:
+                    pass
+            self.root.after(1500, _reset_banner)
+
+    def reset_keybind(self, act):
+        if getattr(self, "recording_action", None):
+            self.cancel_key_recording()
+
+        def_bind = DEFAULT_KEYBINDS.get(act)
+        if not def_bind:
+            return
+
+        if "keybinds" not in self.store:
+            self.store["keybinds"] = {}
+        self.store["keybinds"][act] = dict(def_bind)
+        save_store(self.store)
+
+        play_sound(900, 60)
+
+        btn = self.keybind_buttons.get(act)
+        if btn:
+            btn.configure(
+                text=f"[  {def_bind['name']}  ]",
+                bg="#00E5FF",
+                fg="#000000",
+                highlightthickness=1,
+                highlightbackground="#FFFFFF"
+            )
+            def _settle(b=btn):
+                try:
+                    b.configure(
+                        bg="#25272F",
+                        fg=CXTheme.ACCENT_ORANGE,
+                        highlightthickness=1,
+                        highlightbackground="#3A3D4A"
+                    )
+                except Exception:
+                    pass
+            self.root.after(350, _settle)
+
+        if hasattr(self, "keybind_banner"):
+            self.keybind_banner.configure(
+                text=f"↺ '{def_bind['title']}' 단축키가 기본값 [ {def_bind['name']} ] (으)로 복원되었습니다.",
+                bg="#16181F",
+                fg="#00E5FF",
+                highlightbackground="#00E5FF"
+            )
+            def _reset_banner():
+                try:
+                    if hasattr(self, "keybind_banner") and not getattr(self, "recording_action", None):
+                        self.keybind_banner.configure(
+                            text="💡 변경할 항목의 단축키 버튼을 클릭한 후, 원하는 키를 누르면 즉시 저장됩니다. (취소: ESC)",
+                            bg="#16181F",
+                            fg="#8E929B",
+                            highlightbackground="#25272F"
+                        )
+                except Exception:
+                    pass
+            self.root.after(2000, _reset_banner)
+
+        self.update_sidebar_key_badges()
+
+    def reset_all_keybinds(self):
+        if getattr(self, "recording_action", None):
+            self.cancel_key_recording()
+
+        self.store["keybinds"] = {k: dict(v) for k, v in DEFAULT_KEYBINDS.items()}
+        save_store(self.store)
+
+        play_sound(900, 60)
+        self.root.after(80, lambda: play_sound(1200, 60))
+
+        for act, def_bind in DEFAULT_KEYBINDS.items():
+            btn = self.keybind_buttons.get(act)
+            if btn:
+                btn.configure(
+                    text=f"[  {def_bind['name']}  ]",
+                    bg="#00E5FF",
+                    fg="#000000",
+                    highlightthickness=1,
+                    highlightbackground="#FFFFFF"
+                )
+                def _settle(b=btn):
+                    try:
+                        b.configure(
+                            bg="#25272F",
+                            fg=CXTheme.ACCENT_ORANGE,
+                            highlightthickness=1,
+                            highlightbackground="#3A3D4A"
+                        )
+                    except Exception:
+                        pass
+                self.root.after(350, _settle)
+
+        if hasattr(self, "keybind_banner"):
+            self.keybind_banner.configure(
+                text="↺ 모든 단축키가 기본값으로 성공적으로 초기화되었습니다.",
+                bg="#16181F",
+                fg="#00E5FF",
+                highlightbackground="#00E5FF"
+            )
+            def _reset_banner():
+                try:
+                    if hasattr(self, "keybind_banner") and not getattr(self, "recording_action", None):
+                        self.keybind_banner.configure(
+                            text="💡 변경할 항목의 단축키 버튼을 클릭한 후, 원하는 키를 누르면 즉시 저장됩니다. (취소: ESC)",
+                            bg="#16181F",
+                            fg="#8E929B",
+                            highlightbackground="#25272F"
+                        )
+                except Exception:
+                    pass
+            self.root.after(2500, _reset_banner)
+
+        self.update_sidebar_key_badges()
+
+    def update_sidebar_key_badges(self):
+        if not hasattr(self, "sidebar_key_badges"):
+            return
+        keybinds = self.store.get("keybinds", DEFAULT_KEYBINDS)
+        for act_id, badge in self.sidebar_key_badges.items():
+            cur_key_name = keybinds.get(act_id, {}).get("name")
+            if cur_key_name and badge:
+                try:
+                    badge.configure(text=cur_key_name)
+                except Exception:
+                    pass
 
     def top_loop(self):
         if self.overlay.visible:
@@ -2693,7 +3714,7 @@ class App:
             if last_sw and last_sh and (sw != last_sw or sh != last_sh):
                 if self.overlay.last:
                     self.overlay.draw(self.overlay.last)
-            else:
+            elif not self.settings_visible:
                 self.overlay.keep_on_top()
         # 25ms 초고속 주기로 게임 화면 클릭 시에도 밀림 없이 최상위 유지 (40Hz 하이퍼 탑모스트)
         self.root.after(25, self.top_loop)
