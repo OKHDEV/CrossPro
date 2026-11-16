@@ -150,7 +150,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.8"
+CURRENT_VERSION = "v1.0.9"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -1639,9 +1639,21 @@ class App:
         tk.Label(pal_bar, text="붓 색상:", bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
 
         # 현재 선택된 붓 색상 견본
-        self.brush_swatch = tk.Label(pal_bar, width=3, height=1, bg=self.pixel_brush_hex, relief="flat", bd=0, cursor="hand2")
-        self.brush_swatch.pack(side="left", padx=(0, 8))
+        self.brush_swatch = tk.Label(pal_bar, width=3, height=1, bg=self.pixel_brush_hex, relief="solid", bd=1,
+                                     highlightthickness=1, highlightbackground="#3A3D4A", cursor="hand2")
+        self.brush_swatch.pack(side="left", padx=(0, 4))
         self.brush_swatch.bind("<Button-1>", lambda e: self.pick_brush_color())
+
+        # HEX 직접 입력창
+        self.brush_hex_entry = tk.Entry(pal_bar, bg=CXTheme.BG_INPUT, fg=CXTheme.TEXT_MAIN,
+                                        insertbackground=CXTheme.ACCENT_ORANGE, relief="flat",
+                                        width=8, font=("Consolas", 9), justify="center")
+        self.brush_hex_entry.pack(side="left", padx=(0, 6))
+        self.brush_hex_entry.insert(0, self.pixel_brush_hex)
+        def _on_brush_hex_commit(e=None):
+            self.set_brush_color(self.brush_hex_entry.get())
+        self.brush_hex_entry.bind("<Return>", _on_brush_hex_commit)
+        self.brush_hex_entry.bind("<FocusOut>", _on_brush_hex_commit)
 
         # 퀵 팔레트 색상 버튼들
         quick_colors = [
@@ -1653,7 +1665,8 @@ class App:
             b.pack(side="left", padx=2)
             b.bind("<Button-1>", lambda e, c=c_hex: self.set_brush_color(c))
 
-        self.theme_btn(pal_bar, "🎨 색상 선택...", self.pick_brush_color).pack(side="left", padx=(8, 0))
+        self.theme_btn(pal_bar, "🎨 직접 지정...", self.pick_brush_color).pack(side="left", padx=(6, 0))
+        self.theme_btn(pal_bar, "🔄 전체 색상 교체", self.recolor_pixel_canvas).pack(side="left", padx=(6, 0))
 
         # 메인 캔버스 + 우측 미세 조정 패널
         align_body = tk.Frame(card_studio, bg=CXTheme.BG_CARD)
@@ -1914,16 +1927,46 @@ class App:
             self.img_cv.configure(cursor="arrow")
 
     def set_brush_color(self, hex_col):
+        hex_col = str(hex_col).strip()
+        if not hex_col.startswith("#"):
+            hex_col = "#" + hex_col
+        if len(hex_col) == 7 and all(ch in "0123456789ABCDEFabcdef" for ch in hex_col[1:]):
+            hex_col = hex_col.upper()
+        else:
+            hex_col = self.pixel_brush_hex
         self.pixel_brush_hex = hex_col
         self.pixel_brush_color = hex_rgb(hex_col) + (255,)
         if hasattr(self, "brush_swatch"):
             self.brush_swatch.configure(bg=hex_col)
+        if hasattr(self, "brush_hex_entry"):
+            self.brush_hex_entry.delete(0, tk.END)
+            self.brush_hex_entry.insert(0, hex_col)
         self.select_brush_tool("brush")
 
     def pick_brush_color(self):
-        res = colorchooser.askcolor(self.pixel_brush_hex, parent=self.root)
+        res = colorchooser.askcolor(self.pixel_brush_hex, parent=self.root, title="CROSS PRO - 붓 색상 직접 지정")
         if res and res[1]:
             self.set_brush_color(res[1].upper())
+
+    def recolor_pixel_canvas(self):
+        """현재 캔버스에 그려진 모든 불투명 픽셀을 현재 붓 색상으로 일괄 변경"""
+        if not self.cached_loaded_pil_img:
+            return
+        target_r, target_g, target_b = self.pixel_brush_color[:3]
+        orig_w, orig_h = self.cached_loaded_pil_img.size
+        changed = False
+        for y in range(orig_h):
+            for x in range(orig_w):
+                r, g, b, a = self.cached_loaded_pil_img.getpixel((x, y))
+                if a > 0:
+                    self.cached_loaded_pil_img.putpixel((x, y), (target_r, target_g, target_b, a))
+                    changed = True
+        if changed:
+            self.save_pixel_image()
+            self.overlay.cached_custom_image = self.cached_loaded_pil_img.copy()
+            self.set("use_image", True)
+            self.update_image_canvas()
+            self.redraw()
 
     def toggle_pixel_grid(self):
         self.show_pixel_grid = not self.show_pixel_grid
@@ -2318,22 +2361,91 @@ class App:
         f.pack(fill="x", padx=12, pady=4)
         tk.Label(f, text=label, bg=CXTheme.BG_CARD, fg=CXTheme.TEXT_MAIN, font=("Segoe UI", 9)).pack(side="left")
 
-        sw = tk.Label(f, width=3, height=1, bg=self.cfg.get(key, "#00FF00"), relief="flat", bd=0, cursor="hand2")
-        sw.pack(side="right", padx=4)
-        sw.bind("<Button-1>", lambda e: self.pick_color(key, sw))
+        r_box = tk.Frame(f, bg=CXTheme.BG_CARD)
+        r_box.pack(side="right")
 
-        # 퀵 팔레트 버튼들
-        for c in ["#00FF00", "#00FFA3", "#00E5FF", "#FFFF00", "#FF2B2B", "#FFFFFF"]:
-            b = tk.Label(f, bg=c, width=2, height=1, cursor="hand2", relief="flat")
+        cur_col = self.cfg.get(key, "#00FF00")
+
+        # 1. 🎨 직접 지정 버튼 (한눈에 알아볼 수 있는 버튼)
+        btn_pick = tk.Button(
+            r_box, text="🎨 직접 지정...", bg="#25272F", fg=CXTheme.TEXT_MAIN,
+            activebackground=CXTheme.ACCENT_ORANGE, activeforeground="#FFFFFF",
+            relief="flat", bd=0, padx=6, pady=2, font=("Segoe UI", 8, "bold"),
+            cursor="hand2", command=lambda: self.pick_color(key)
+        )
+        btn_pick.pack(side="right", padx=(6, 0))
+
+        # 2. 색상 견본 (클릭 시에도 팔레트 오픈)
+        sw = tk.Label(r_box, width=3, height=1, bg=cur_col, relief="solid", bd=1,
+                      highlightthickness=1, highlightbackground="#3A3D4A", cursor="hand2")
+        sw.pack(side="right", padx=(4, 2))
+        sw.bind("<Button-1>", lambda e: self.pick_color(key))
+
+        # 3. HEX 코드 직접 입력창 (예: #00FF00)
+        ent = tk.Entry(r_box, bg=CXTheme.BG_INPUT, fg=CXTheme.TEXT_MAIN,
+                       insertbackground=CXTheme.ACCENT_ORANGE, relief="flat",
+                       width=8, font=("Consolas", 9), justify="center")
+        ent.pack(side="right", padx=3)
+        ent.insert(0, cur_col)
+        
+        def _on_hex_commit(e=None):
+            self.set_color(key, ent.get())
+        ent.bind("<Return>", _on_hex_commit)
+        ent.bind("<FocusOut>", _on_hex_commit)
+
+        # 4. 퀵 팔레트 색상 버튼들
+        quick_colors = ["#00FF00", "#00FFA3", "#00E5FF", "#FFFF00", "#FF2B2B", "#FFFFFF", "#000000"]
+        for c in reversed(quick_colors):
+            b = tk.Label(r_box, bg=c, width=2, height=1, cursor="hand2", relief="flat")
             b.pack(side="right", padx=1)
-            b.bind("<Button-1>", lambda e, c=c, sw=sw: (self.set(key, c), sw.configure(bg=c)))
+            b.bind("<Button-1>", lambda e, c=c: self.set_color(key, c))
 
-    def pick_color(self, key, swatch):
-        res = colorchooser.askcolor(self.cfg.get(key, "#00FF00"), parent=self.root)
+        if not hasattr(self, "color_widgets"):
+            self.color_widgets = {}
+        self.color_widgets[key] = (sw, ent)
+
+    def set_color(self, key, hex_code):
+        hex_code = str(hex_code).strip()
+        if not hex_code.startswith("#"):
+            hex_code = "#" + hex_code
+        if len(hex_code) == 7 and all(ch in "0123456789ABCDEFabcdef" for ch in hex_code[1:]):
+            hex_code = hex_code.upper()
+        else:
+            hex_code = self.cfg.get(key, "#00FF00")
+
+        # 벡터 색상 설정 시 이미지 모드가 켜져있었다면 벡터 모드로 자동 전환!
+        if self.cfg.get("use_image", False):
+            self.cfg["use_image"] = False
+            if hasattr(self, "img_toggle"):
+                self.img_toggle.set_state(False)
+
+        # 도트/라인/외곽선 색상 변경 시 해당 요소가 꺼져있다면 자동으로 켜기
+        if key == "dot_color" and not self.cfg.get("dot_on", False):
+            self.cfg["dot_on"] = True
+            if hasattr(self, "toggles") and "dot_on" in self.toggles:
+                self.toggles["dot_on"].set_state(True)
+        elif key == "line_color" and not self.cfg.get("line_on", False):
+            self.cfg["line_on"] = True
+            if hasattr(self, "toggles") and "line_on" in self.toggles:
+                self.toggles["line_on"].set_state(True)
+        elif key == "outline_color" and not self.cfg.get("outline_on", False):
+            self.cfg["outline_on"] = True
+            if hasattr(self, "toggles") and "outline_on" in self.toggles:
+                self.toggles["outline_on"].set_state(True)
+
+        self.set(key, hex_code)
+
+        if hasattr(self, "color_widgets") and key in self.color_widgets:
+            sw, ent = self.color_widgets[key]
+            sw.configure(bg=hex_code)
+            ent.delete(0, tk.END)
+            ent.insert(0, hex_code)
+
+    def pick_color(self, key):
+        init_col = self.cfg.get(key, "#00FF00")
+        res = colorchooser.askcolor(init_col, parent=self.root, title=f"CROSS PRO - 색상 직접 지정")
         if res and res[1]:
-            c = res[1].upper()
-            self.set(key, c)
-            swatch.configure(bg=c)
+            self.set_color(key, res[1].upper())
 
     def theme_btn(self, parent, text, cmd):
         return tk.Button(parent, text=text, bg="#25272F", fg=CXTheme.TEXT_MAIN, activebackground=CXTheme.ACCENT_ORANGE,
@@ -2359,6 +2471,12 @@ class App:
     def set(self, key, val):
         if self._syncing:
             return
+        # 디자이너에서 선, 도트, 윤곽선 등의 속성을 변경할 때 이미지 모드가 켜져 있었다면 자동으로 벡터 모드로 복귀
+        if key not in ("use_image", "image_path", "image_scale", "image_filter", "img_anchor_x", "img_anchor_y"):
+            if self.cfg.get("use_image", False):
+                self.cfg["use_image"] = False
+                if hasattr(self, "img_toggle"):
+                    self.img_toggle.set_state(False)
         self.cfg[key] = val
         self.redraw()
 
@@ -2426,6 +2544,13 @@ class App:
             for k, b in self.dir_btns.items():
                 on = self.cfg.get(k, True)
                 b.configure(bg=CXTheme.ACCENT_ORANGE if on else "#25272F")
+            # 색상 위젯 동기화
+            if hasattr(self, "color_widgets"):
+                for k, (sw, ent) in self.color_widgets.items():
+                    c_val = self.cfg.get(k, "#00FF00")
+                    sw.configure(bg=c_val)
+                    ent.delete(0, tk.END)
+                    ent.insert(0, c_val)
         finally:
             self._syncing = False
         self.redraw()
