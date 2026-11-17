@@ -9,6 +9,7 @@ CrossPro - Ultimate FPS Crosshair System (Crosshair X Style)
 - 실시간 미니 프리뷰 캔버스
 - 전역 단축키 & 시스템 트레이(숨겨진 아이콘) 우클릭 종료 지원
 """
+import colorsys
 import ctypes
 from ctypes import wintypes
 import json
@@ -222,7 +223,7 @@ APP_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen
 CFG_PATH = os.path.join(APP_DIR, "crosspro_profiles.json")
 CANVAS = 361  # 오버레이 캔버스 크기 (px)
 
-CURRENT_VERSION = "v1.0.10"
+CURRENT_VERSION = "v1.0.11"
 GITHUB_REPO = "OKHDEV/CrossPro"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -1286,7 +1287,7 @@ class SplashScreen:
 
 
 class ModernColorPicker(tk.Toplevel):
-    """CROSS PRO 전용 내장 다크모드 색상 선택기 (먹통 0%, 실시간 미리보기)"""
+    """CROSS PRO 전용 내장 다크모드 색상 선택기 (2D 비주얼 팔레트 + 레인보우 스펙트럼 + 먹통 0%)"""
     def __init__(self, parent, initial_color="#00FF00", title="CROSS PRO - 색상 선택", on_select=None):
         super().__init__(parent)
         self.title(title)
@@ -1308,16 +1309,27 @@ class ModernColorPicker(tk.Toplevel):
         except Exception:
             self.r, self.g, self.b = 0, 255, 0
 
-        self.geometry("420x460")
-        
+        # HSV 초기값 파싱
+        h_val, s_val, v_val = colorsys.rgb_to_hsv(self.r / 255.0, self.g / 255.0, self.b / 255.0)
+        self.current_h = h_val
+        self.current_s = s_val
+        self.current_v = v_val
+
+        self.PAL_W = 380
+        self.PAL_H = 130
+        self.HUE_H = 14
+        self._updating = False
+
+        self.geometry("420x570")
+
         # 헤더 바
-        hdr = tk.Frame(self, bg="#121316", padx=16, pady=12)
+        hdr = tk.Frame(self, bg="#121316", padx=16, pady=10)
         hdr.pack(fill="x")
         tk.Label(hdr, text=title, bg="#121316", fg="#FFFFFF", font=("Segoe UI", 11, "bold")).pack(side="left")
 
-        # 1. 상단 색상 미리보기 박스 (새 색상 vs 이전 색상)
-        prev_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=14, pady=10)
-        prev_card.pack(fill="x", padx=16, pady=(0, 10))
+        # 1. 상단 색상 미리보기 & HEX 입력 카드
+        prev_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=12, pady=8)
+        prev_card.pack(fill="x", padx=16, pady=(0, 8))
 
         p_row = tk.Frame(prev_card, bg="#191A1E")
         p_row.pack(fill="x")
@@ -1330,34 +1342,58 @@ class ModernColorPicker(tk.Toplevel):
         self.swatch_new.pack(fill="x", pady=(2, 0))
 
         # 화살표
-        tk.Label(p_row, text="◀", bg="#191A1E", fg="#FF6B00", font=("Segoe UI", 12, "bold"), padx=12).pack(side="left")
+        tk.Label(p_row, text="◀", bg="#191A1E", fg="#FF6B00", font=("Segoe UI", 11, "bold"), padx=10).pack(side="left")
 
         # 이전 색상 견본
         f_old = tk.Frame(p_row, bg="#191A1E")
         f_old.pack(side="left", expand=True, fill="both")
-        tk.Label(f_old, text="기존 색상", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 8)).pack(anchor="w")
+        tk.Label(f_old, text="기존 색상 (복원)", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 8)).pack(anchor="w")
         self.swatch_old = tk.Label(f_old, bg=self.initial_color, height=2, relief="solid", bd=1, highlightthickness=1, highlightbackground="#3A3D4A", cursor="hand2")
         self.swatch_old.pack(fill="x", pady=(2, 0))
         self.swatch_old.bind("<Button-1>", lambda e: self.set_hex(self.initial_color))
 
         # HEX 입력창
         hex_row = tk.Frame(prev_card, bg="#191A1E")
-        hex_row.pack(fill="x", pady=(8, 0))
+        hex_row.pack(fill="x", pady=(6, 0))
         tk.Label(hex_row, text="HEX 색상 코드:", bg="#191A1E", fg="#FFFFFF", font=("Segoe UI", 9, "bold")).pack(side="left")
-        
+
         self.ent_hex = tk.Entry(hex_row, bg="#131417", fg="#FFFFFF", insertbackground="#FF6B00",
                                 relief="flat", width=10, font=("Consolas", 10, "bold"), justify="center")
         self.ent_hex.pack(side="left", padx=8)
         self.ent_hex.insert(0, self.current_color)
+
         def _on_hex_enter(e=None):
             self.set_hex(self.ent_hex.get())
         self.ent_hex.bind("<Return>", _on_hex_enter)
         self.ent_hex.bind("<FocusOut>", _on_hex_enter)
 
-        # 2. 인기 게이밍 프리셋 24색 팔레트
-        pal_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=12, pady=10)
-        pal_card.pack(fill="x", padx=16, pady=(0, 10))
-        tk.Label(pal_card, text="인기 조준선 추천 컬러", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(0, 6))
+        # 2. 비주얼 2D 컬러 팔레트 & 레인보우 색상 스펙트럼 카드
+        pal_2d_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=10, pady=8)
+        pal_2d_card.pack(fill="x", padx=16, pady=(0, 8))
+
+        pal_hdr = tk.Frame(pal_2d_card, bg="#191A1E")
+        pal_hdr.pack(fill="x", pady=(0, 4))
+        tk.Label(pal_hdr, text="비주얼 컬러 팔레트", bg="#191A1E", fg="#FFFFFF", font=("Segoe UI", 8, "bold")).pack(side="left")
+        tk.Label(pal_hdr, text="원하는 색상을 마우스로 클릭하거나 드래그하세요", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 7)).pack(side="right")
+
+        # 2D 채도/명도 캔버스
+        self.pal_cv = tk.Canvas(pal_2d_card, width=self.PAL_W, height=self.PAL_H, bg="#000000",
+                                highlightthickness=1, highlightbackground="#3A3D4A", cursor="crosshair")
+        self.pal_cv.pack(fill="x", pady=(0, 6))
+        self.pal_cv.bind("<Button-1>", self._on_pal_click)
+        self.pal_cv.bind("<B1-Motion>", self._on_pal_click)
+
+        # 레인보우 색상환(Hue) 바 캔버스
+        self.hue_cv = tk.Canvas(pal_2d_card, width=self.PAL_W, height=self.HUE_H, bg="#000000",
+                                highlightthickness=1, highlightbackground="#3A3D4A", cursor="sb_h_double_arrow")
+        self.hue_cv.pack(fill="x")
+        self.hue_cv.bind("<Button-1>", self._on_hue_click)
+        self.hue_cv.bind("<B1-Motion>", self._on_hue_click)
+
+        # 3. 인기 게이밍 프리셋 24색 팔레트
+        quick_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=10, pady=6)
+        quick_card.pack(fill="x", padx=16, pady=(0, 8))
+        tk.Label(quick_card, text="인기 조준선 추천 컬러", bg="#191A1E", fg="#8E929B", font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(0, 4))
 
         presets = [
             "#00FF00", "#00FFA3", "#00FFFF", "#00D4FF", "#0088FF", "#304FFE",
@@ -1365,17 +1401,17 @@ class ModernColorPicker(tk.Toplevel):
             "#FF2B2B", "#FF4081", "#F50057", "#D500F9", "#7C4DFF", "#651FFF",
             "#FFFFFF", "#CCCCCC", "#888888", "#444444", "#222222", "#000000"
         ]
-        grid_f = tk.Frame(pal_card, bg="#191A1E")
+        grid_f = tk.Frame(quick_card, bg="#191A1E")
         grid_f.pack(fill="x")
         cols = 8
         for i, c in enumerate(presets):
             b = tk.Label(grid_f, bg=c, width=3, height=1, cursor="hand2", relief="solid", bd=1, highlightthickness=1, highlightbackground="#2E303B")
-            b.grid(row=i // cols, column=i % cols, padx=2, pady=2)
+            b.grid(row=i // cols, column=i % cols, padx=2, pady=1)
             b.bind("<Button-1>", lambda e, col=c: self.set_hex(col))
 
-        # 3. RGB 미세 조정 슬라이더
-        rgb_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=14, pady=8)
-        rgb_card.pack(fill="x", padx=16, pady=(0, 12))
+        # 4. RGB 미세 조정 슬라이더
+        rgb_card = tk.Frame(self, bg="#191A1E", highlightthickness=1, highlightbackground="#25272F", padx=12, pady=6)
+        rgb_card.pack(fill="x", padx=16, pady=(0, 10))
 
         self.r_val = tk.IntVar(value=self.r)
         self.g_val = tk.IntVar(value=self.g)
@@ -1383,7 +1419,7 @@ class ModernColorPicker(tk.Toplevel):
 
         def _make_rgb_slider(label, var, color_accent):
             row = tk.Frame(rgb_card, bg="#191A1E")
-            row.pack(fill="x", pady=2)
+            row.pack(fill="x", pady=1)
             tk.Label(row, text=label, bg="#191A1E", fg=color_accent, font=("Segoe UI", 8, "bold"), width=3).pack(side="left")
             s = ttk.Scale(row, from_=0, to=255, variable=var, command=lambda v: self._on_rgb_change())
             s.pack(side="left", fill="x", expand=True, padx=8)
@@ -1394,19 +1430,26 @@ class ModernColorPicker(tk.Toplevel):
         _make_rgb_slider("G", self.g_val, "#55FF55")
         _make_rgb_slider("B", self.b_val, "#5599FF")
 
-        # 4. 하단 버튼 영역 [확인] [취소]
+        # 5. 하단 버튼 영역 [확인] [취소]
         bot_bar = tk.Frame(self, bg="#121316", padx=16)
-        bot_bar.pack(fill="x", side="bottom", pady=(0, 14))
+        bot_bar.pack(fill="x", side="bottom", pady=(0, 12))
 
         btn_cancel = tk.Button(bot_bar, text="취소", bg="#25272F", fg="#8E929B", activebackground="#333642",
-                               activeforeground="#FFFFFF", relief="flat", bd=0, padx=16, pady=6,
+                               activeforeground="#FFFFFF", relief="flat", bd=0, padx=16, pady=5,
                                font=("Segoe UI", 9, "bold"), cursor="hand2", command=self.on_cancel)
         btn_cancel.pack(side="right", padx=(8, 0))
 
         btn_apply = tk.Button(bot_bar, text="✓ 확인 (적용)", bg="#FF6B00", fg="#FFFFFF", activebackground="#FF8533",
-                              activeforeground="#FFFFFF", relief="flat", bd=0, padx=20, pady=6,
+                              activeforeground="#FFFFFF", relief="flat", bd=0, padx=20, pady=5,
                               font=("Segoe UI", 9, "bold"), cursor="hand2", command=self.on_apply)
         btn_apply.pack(side="right")
+
+        # 캔버스 정적 배경 렌더링 & 초기 위치 세팅
+        self._hue_bar_img_tk = ImageTk.PhotoImage(self._render_hue_image())
+        self.hue_cv.create_image(self.PAL_W // 2, self.HUE_H // 2, image=self._hue_bar_img_tk)
+
+        self._update_sv_gradient()
+        self._update_cursors()
 
         # 창 위치: 부모 창 중앙
         self.update_idletasks()
@@ -1424,14 +1467,109 @@ class ModernColorPicker(tk.Toplevel):
         self.bind("<Escape>", lambda e: self.on_cancel())
         self.protocol("WM_DELETE_WINDOW", self.on_cancel)
 
+    def _render_hue_image(self):
+        hue_row = Image.new("RGB", (self.PAL_W, 1))
+        for x in range(self.PAL_W):
+            h = x / max(1, self.PAL_W - 1)
+            r, g, b = colorsys.hsv_to_rgb(h, 1.0, 1.0)
+            hue_row.putpixel((x, 0), (int(r * 255), int(g * 255), int(b * 255)))
+        return hue_row.resize((self.PAL_W, self.HUE_H))
+
+    def _update_sv_gradient(self):
+        r0, g0, b0 = colorsys.hsv_to_rgb(self.current_h, 1.0, 1.0)
+        r0, g0, b0 = int(r0 * 255), int(g0 * 255), int(b0 * 255)
+        top_row = Image.new("RGB", (self.PAL_W, 1))
+        for x in range(self.PAL_W):
+            s = x / max(1, self.PAL_W - 1)
+            top_row.putpixel((x, 0), (int(255 * (1 - s) + r0 * s), int(255 * (1 - s) + g0 * s), int(255 * (1 - s) + b0 * s)))
+        grad = top_row.resize((self.PAL_W, self.PAL_H))
+        mask = Image.new("L", (1, self.PAL_H))
+        for y in range(self.PAL_H):
+            mask.putpixel((0, y), 255 - int(255 * (y / max(1, self.PAL_H - 1))))
+        mask = mask.resize((self.PAL_W, self.PAL_H))
+        black = Image.new("RGB", (self.PAL_W, self.PAL_H), (0, 0, 0))
+        img = Image.composite(grad, black, mask)
+
+        self._sv_img_tk = ImageTk.PhotoImage(img)
+        self.pal_cv.delete("bg")
+        self.pal_cv.create_image(self.PAL_W // 2, self.PAL_H // 2, image=self._sv_img_tk, tags="bg")
+        self.pal_cv.tag_lower("bg")
+
+    def _update_cursors(self):
+        # 1. 2D 팔레트 선택 원 그리기 (이중 링)
+        cx = int(round(self.current_s * (self.PAL_W - 1)))
+        cy = int(round((1.0 - self.current_v) * (self.PAL_H - 1)))
+        self.pal_cv.delete("cursor")
+        self.pal_cv.create_oval(cx - 6, cy - 6, cx + 6, cy + 6, outline="#000000", width=2, tags="cursor")
+        self.pal_cv.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, outline="#FFFFFF", width=1.5, tags="cursor")
+
+        # 2. 색상환(Hue) 슬라이더 바 위치 표시기
+        hx = int(round(self.current_h * (self.PAL_W - 1)))
+        self.hue_cv.delete("cursor")
+        self.hue_cv.create_rectangle(hx - 2, 0, hx + 2, self.HUE_H, fill="#FFFFFF", outline="#000000", tags="cursor")
+
+    def _on_pal_click(self, event):
+        x = max(0, min(self.PAL_W - 1, event.x))
+        y = max(0, min(self.PAL_H - 1, event.y))
+        self.current_s = x / max(1, self.PAL_W - 1)
+        self.current_v = 1.0 - (y / max(1, self.PAL_H - 1))
+        self._sync_hsv_to_all(update_sv=False)
+
+    def _on_hue_click(self, event):
+        x = max(0, min(self.PAL_W - 1, event.x))
+        self.current_h = x / max(1, self.PAL_W - 1)
+        self._update_sv_gradient()
+        self._sync_hsv_to_all(update_sv=False)
+
+    def _sync_hsv_to_all(self, update_sv=True):
+        if self._updating:
+            return
+        self._updating = True
+        try:
+            if update_sv:
+                self._update_sv_gradient()
+            self._update_cursors()
+
+            r, g, b = colorsys.hsv_to_rgb(self.current_h, self.current_s, self.current_v)
+            self.r = int(round(r * 255))
+            self.g = int(round(g * 255))
+            self.b = int(round(b * 255))
+            self.current_color = f"#{self.r:02X}{self.g:02X}{self.b:02X}"
+
+            self.swatch_new.configure(bg=self.current_color)
+            self.r_val.set(self.r)
+            self.g_val.set(self.g)
+            self.b_val.set(self.b)
+
+            self.ent_hex.delete(0, tk.END)
+            self.ent_hex.insert(0, self.current_color)
+        finally:
+            self._updating = False
+
     def _on_rgb_change(self):
-        r = int(self.r_val.get())
-        g = int(self.g_val.get())
-        b = int(self.b_val.get())
-        self.current_color = f"#{r:02X}{g:02X}{b:02X}"
-        self.swatch_new.configure(bg=self.current_color)
-        self.ent_hex.delete(0, tk.END)
-        self.ent_hex.insert(0, self.current_color)
+        if self._updating:
+            return
+        self._updating = True
+        try:
+            self.r = int(self.r_val.get())
+            self.g = int(self.g_val.get())
+            self.b = int(self.b_val.get())
+            self.current_color = f"#{self.r:02X}{self.g:02X}{self.b:02X}"
+
+            h, s, v = colorsys.rgb_to_hsv(self.r / 255.0, self.g / 255.0, self.b / 255.0)
+            if s > 0.001:
+                self.current_h = h
+            self.current_s = s
+            self.current_v = v
+
+            self._update_sv_gradient()
+            self._update_cursors()
+
+            self.swatch_new.configure(bg=self.current_color)
+            self.ent_hex.delete(0, tk.END)
+            self.ent_hex.insert(0, self.current_color)
+        finally:
+            self._updating = False
 
     def set_hex(self, hex_code):
         hex_code = str(hex_code).strip()
@@ -1442,11 +1580,23 @@ class ModernColorPicker(tk.Toplevel):
                 r = int(hex_code[1:3], 16)
                 g = int(hex_code[3:5], 16)
                 b = int(hex_code[5:7], 16)
+                self.r, self.g, self.b = r, g, b
+                self.current_color = hex_code.upper()
+
+                h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+                if s > 0.001:
+                    self.current_h = h
+                self.current_s = s
+                self.current_v = v
+
+                self.swatch_new.configure(bg=self.current_color)
                 self.r_val.set(r)
                 self.g_val.set(g)
                 self.b_val.set(b)
-                self.current_color = hex_code.upper()
-                self.swatch_new.configure(bg=self.current_color)
+
+                self._update_sv_gradient()
+                self._update_cursors()
+
                 self.ent_hex.delete(0, tk.END)
                 self.ent_hex.insert(0, self.current_color)
             except Exception:
